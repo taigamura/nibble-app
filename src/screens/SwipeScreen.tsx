@@ -14,11 +14,17 @@ interface SwipeScreenProps {
   seed?: number;
 }
 
-export function SwipeScreen({ placesProvider, store, seed = Date.now() }: SwipeScreenProps) {
+export function SwipeScreen({ placesProvider, store, seed }: SwipeScreenProps) {
   const [candidates, setCandidates] = useState<Place[] | null>(null);
   const [graph, setGraph] = useState<TasteGraph>(emptyTasteGraph());
   const [undoStack, setUndoStack] = useState<SwipeEvent[]>([]);
   const cardRef = useRef<CardHandle>(null);
+  // `seed` is meant to be stable for the life of the session (that's what
+  // makes the 70/30 blend "injected" rather than reshuffled on every
+  // render). Falling back to `Date.now()` as a default *parameter* would
+  // re-evaluate on every render since no caller passes `seed`, silently
+  // re-randomizing the wildcard slice on each swipe/undo. Pin it once.
+  const sessionSeed = useRef(seed ?? Date.now()).current;
 
   useEffect(() => {
     let cancelled = false;
@@ -39,8 +45,8 @@ export function SwipeScreen({ placesProvider, store, seed = Date.now() }: SwipeS
 
   const deck = useMemo(() => {
     if (!candidates) return [];
-    return rankDeck(graph, candidates, { seed });
-  }, [candidates, graph, seed]);
+    return rankDeck(graph, candidates, { seed: sessionSeed });
+  }, [candidates, graph, sessionSeed]);
 
   const topPlace = deck[0];
   const nextPlace = deck[1];

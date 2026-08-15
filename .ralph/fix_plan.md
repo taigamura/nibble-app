@@ -111,4 +111,33 @@ session guardrails, `taste-engine` is the only seam expected to be
 exhaustively tested; simulating a PanResponder gesture release in
 `jest-expo` would need `react-native-testing-library` (not currently a
 dependency) and disproportionate setup for one closure fix. Landed in
-commit (this loop).
+commit 314719d.
+
+## Loop #5 (2026-08-15): still blocked on spec sync — fixed a seed-stability bug
+Rechecked: `.ralph/specs/` is still only `issue-2.md`. Continued the same
+approach as loop #4 — audited the existing issue #2 implementation rather
+than re-report the same blocker — and found a second bug, this time in
+`src/screens/SwipeScreen.tsx`.
+
+**Bug:** `SwipeScreen({ seed = Date.now() })` used a default *parameter*
+for the injected seed. Since `App.tsx` never passes a `seed` prop, that
+default expression re-evaluates on *every render*, so any state update
+(a swipe, an undo) produced a brand-new `Date.now()` seed, which fed
+straight into the `rankDeck` `useMemo` dependency array and re-shuffled the
+wildcard ~30% of the deck on every interaction. This defeats the point of
+an "injected seed" (issue #2's acceptance criteria: "deterministic under a
+fixed injected seed") — the app-level seed should be pinned once per
+session, not continuously re-randomized. `topPlace` itself never visibly
+glitched (it almost always comes from the score-sorted fit slice, not the
+shuffled wildcard slice), so this wouldn't have been obvious from casual
+manual testing, only from reading the render/memo dependency chain.
+
+**Fix:** pin the seed once via `useRef(seed ?? Date.now()).current` inside
+the component instead of a default parameter, and depend on that stable
+`sessionSeed` in the `rankDeck` memo instead of the raw `seed` prop.
+
+Verify gate: `npm run typecheck`, `npm test` (10/10, `taste-engine`
+untouched), `npm exec -- expo export --platform ios` all green. No new
+test added for the same reason as loop #4 (UI/render-timing behavior,
+outside the exhaustively-tested `taste-engine` seam; would need
+`react-native-testing-library` to assert re-render behavior directly).
