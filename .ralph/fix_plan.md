@@ -75,3 +75,40 @@ issue #2 landed — stale docs would have sent a future loop (or the
 `ralph enable --sync` harness) down the wrong path. Verified the new
 commands (`npm run typecheck`, `npm test`) are actually green before
 committing.
+
+## Loop #4 (2026-08-15): still blocked on spec sync — fixed a stale-closure bug instead
+Rechecked: `.ralph/specs/` is still only `issue-2.md`, `gh` is still
+unreachable, no new queue items unblocked. Rather than report the same
+blocker a third time with nothing new, reviewed the existing issue #2
+implementation for correctness bugs (fair game — "search the codebase
+before assuming something isn't implemented" cuts both ways: also check
+what *is* implemented for defects) and found one in
+`src/components/Card.tsx`.
+
+**Bug:** `panResponder` was created once via `useRef(PanResponder.create(...)).current`,
+so its `onPanResponderRelease` closure captured whichever `flyOut` (and
+therefore whichever `onSwiped` prop) existed at that Card instance's first
+render. `SwipeScreen` passes a fresh `onSwiped` closure over the *current*
+`graph` on every render. Since a Card instance persists across
+re-renders as long as `key={topPlace.id}` doesn't change (e.g. the user
+swipes card X, then card Y, then taps Undo — Y can stay on top while
+`graph` reverts to pre-X), a drag-released swipe on that same top card
+could fire the *stale* `onSwiped`, committing `updateTaste` against a
+stale (pre-undo) graph and silently corrupting the taste vector. Tap-button
+swipes were already safe (`useImperativeHandle`'s no-deps effect refreshes
+`animateOut` every render); only the raw pan-gesture path was stale.
+
+**Fix:** added `onSwipedRef` (a ref reassigned every render) and had
+`flyOut`'s animation-complete callback call `onSwipedRef.current(action)`
+instead of closing over the `onSwiped` prop directly — the ref is read at
+*invocation* time, not closure-definition time, so it's always current
+regardless of when the frozen `panResponder` closure was created.
+
+Verify gate: `npm run typecheck`, `npm test` (still 10/10 on
+`taste-engine`, untouched), and `npm exec -- expo export --platform ios`
+all green. Did not add a new automated regression test for this — per the
+session guardrails, `taste-engine` is the only seam expected to be
+exhaustively tested; simulating a PanResponder gesture release in
+`jest-expo` would need `react-native-testing-library` (not currently a
+dependency) and disproportionate setup for one closure fix. Landed in
+commit (this loop).

@@ -37,13 +37,23 @@ function targetFor(action: SwipeAction): { x: number; y: number } {
 export const Card = forwardRef<CardHandle, CardProps>(({ place, onSwiped }, ref) => {
   const position = useRef(new Animated.ValueXY()).current;
 
+  // The PanResponder below is created once (via useRef) and its handlers
+  // close over whatever `flyOut` existed at that first render. Routing the
+  // actual callback through a ref that's reassigned every render — instead
+  // of calling the `onSwiped` prop directly — ensures a drag-released swipe
+  // always fires the *current* handler (and thus the current taste graph),
+  // not a stale one from mount, even if this Card instance outlives a
+  // parent re-render (e.g. an Undo elsewhere in the deck).
+  const onSwipedRef = useRef(onSwiped);
+  onSwipedRef.current = onSwiped;
+
   const flyOut = (action: SwipeAction) => {
     const target = targetFor(action);
     Animated.timing(position, {
       toValue: target,
       duration: 220,
       useNativeDriver: false,
-    }).start(() => onSwiped(action));
+    }).start(() => onSwipedRef.current(action));
   };
 
   useImperativeHandle(ref, () => ({ animateOut: flyOut }));
