@@ -1,4 +1,6 @@
-# Issue #8: Google Maps handoff (directions + write-a-review)
+# Google Maps handoff (directions + write-a-review)
+
+> GitHub issue #8 | Labels: ready-for-agent, P1 | https://github.com/taigamura/nibble-app/issues/8
 
 ## Parent
 
@@ -12,11 +14,11 @@ End-to-end: open a place → detail screen → tap Directions or Write Review �
 
 ## Acceptance criteria
 
-- [ ] A place-detail screen is reachable from a swipe card and from collection items.
-- [ ] A Directions action deep-links into Google Maps navigation for that place.
-- [ ] A Write-a-review action deep-links into the Google Maps review screen for that place.
-- [ ] Handoff uses the stored Place ID; no live Google content is cached beyond TOS limits.
-- [ ] The app does not attempt to host reviews or write to Google saved lists.
+- [x] A place-detail screen is reachable from a swipe card and from collection items.
+- [x] A Directions action deep-links into Google Maps navigation for that place.
+- [x] A Write-a-review action deep-links into the Google Maps review screen for that place.
+- [x] Handoff uses the stored Place ID; no live Google content is cached beyond TOS limits.
+- [x] The app does not attempt to host reviews or write to Google saved lists.
 
 ## Blocked by
 

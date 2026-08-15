@@ -1,5 +1,5 @@
 import React, { forwardRef, useImperativeHandle, useRef } from 'react';
-import { Animated, Image, PanResponder, StyleSheet, Text, View } from 'react-native';
+import { Animated, Image, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { Place, SwipeAction } from '../taste-engine';
 
@@ -14,6 +14,8 @@ export interface CardHandle {
 interface CardProps {
   place: Place;
   onSwiped: (action: SwipeAction) => void;
+  /** Opens the place-detail screen for this card. Omitted for the non-interactive card behind it. */
+  onInfoPress?: (place: Place) => void;
 }
 
 function directionFor(dx: number, dy: number): SwipeAction | null {
@@ -34,7 +36,7 @@ function targetFor(action: SwipeAction): { x: number; y: number } {
   }
 }
 
-export const Card = forwardRef<CardHandle, CardProps>(({ place, onSwiped }, ref) => {
+export const Card = forwardRef<CardHandle, CardProps>(({ place, onSwiped, onInfoPress }, ref) => {
   const position = useRef(new Animated.ValueXY()).current;
 
   // The PanResponder below is created once (via useRef) and its handlers
@@ -95,6 +97,15 @@ export const Card = forwardRef<CardHandle, CardProps>(({ place, onSwiped }, ref)
       ]}
     >
       <Image source={{ uri: place.photoUrl }} style={styles.photo} />
+      {onInfoPress && (
+        <Pressable
+          accessibilityLabel={`View details for ${place.name}`}
+          style={styles.infoButton}
+          onPress={() => onInfoPress(place)}
+        >
+          <Text style={styles.infoButtonText}>ⓘ</Text>
+        </Pressable>
+      )}
       <View style={styles.info}>
         <Text style={styles.name}>{place.name}</Text>
         <Text style={styles.meta}>
@@ -125,6 +136,22 @@ const styles = StyleSheet.create({
   photo: {
     width: '100%',
     height: '78%',
+  },
+  infoButton: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  infoButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
   },
   info: {
     padding: 16,

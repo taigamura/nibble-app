@@ -6,6 +6,7 @@ import { RatingPrompt } from '../components/RatingPrompt';
 import type { EnrichmentProvider, PlacesProvider, Store } from '../providers/types';
 import { applyRating, emptyTasteGraph, rankDeck, updateTaste } from '../taste-engine';
 import type { Place, SwipeAction, SwipeEvent, TasteGraph } from '../taste-engine';
+import { PlaceDetailModal } from './PlaceDetailModal';
 
 interface SwipeScreenProps {
   placesProvider: PlacesProvider;
@@ -20,6 +21,7 @@ export function SwipeScreen({ placesProvider, store, seed }: SwipeScreenProps) {
   const [graph, setGraph] = useState<TasteGraph>(emptyTasteGraph());
   const [undoStack, setUndoStack] = useState<SwipeEvent[]>([]);
   const [pendingRating, setPendingRating] = useState<Place | null>(null);
+  const [detailPlace, setDetailPlace] = useState<Place | null>(null);
   const cardRef = useRef<CardHandle>(null);
   // `seed` is meant to be stable for the life of the session (that's what
   // makes the 70/30 blend "injected" rather than reshuffled on every
@@ -121,6 +123,7 @@ export function SwipeScreen({ placesProvider, store, seed }: SwipeScreenProps) {
             ref={cardRef}
             place={topPlace}
             onSwiped={(action) => commitSwipe(topPlace, action)}
+            onInfoPress={setDetailPlace}
           />
         )}
       </View>
@@ -157,6 +160,11 @@ export function SwipeScreen({ placesProvider, store, seed }: SwipeScreenProps) {
           onSkip={handleSkipRating}
         />
       )}
+      <PlaceDetailModal
+        place={detailPlace}
+        rating={detailPlace ? graph.ratings[detailPlace.id] : undefined}
+        onClose={() => setDetailPlace(null)}
+      />
     </View>
   );
 }

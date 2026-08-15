@@ -1,7 +1,8 @@
 import React from 'react';
-import { Image, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import type { Place } from '../taste-engine';
+import { buildDirectionsUrl, buildWriteReviewUrl } from './googleMapsLinks';
 
 interface PlaceDetailModalProps {
   place: Place | null;
@@ -39,6 +40,24 @@ export function PlaceDetailModal({ place, rating, onClose }: PlaceDetailModalPro
                 )}
               </View>
             </ScrollView>
+          )}
+          {place && (
+            <View style={styles.actions}>
+              <Pressable
+                accessibilityLabel="Directions"
+                style={[styles.actionButton, styles.directions]}
+                onPress={() => Linking.openURL(buildDirectionsUrl(place))}
+              >
+                <Text style={[styles.actionText, styles.directionsText]}>Directions</Text>
+              </Pressable>
+              <Pressable
+                accessibilityLabel="Write a review"
+                style={[styles.actionButton, styles.writeReview]}
+                onPress={() => Linking.openURL(buildWriteReviewUrl(place))}
+              >
+                <Text style={styles.actionText}>Write a review</Text>
+              </Pressable>
+            </View>
           )}
           <Pressable accessibilityLabel="Close place detail" style={styles.close} onPress={onClose}>
             <Text style={styles.closeText}>Close</Text>
@@ -100,6 +119,32 @@ const styles = StyleSheet.create({
   tagText: {
     fontSize: 12,
     color: '#444',
+  },
+  actions: {
+    flexDirection: 'row',
+    gap: 10,
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+  },
+  actionButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  directions: {
+    backgroundColor: '#111',
+  },
+  writeReview: {
+    backgroundColor: '#f0f0f0',
+  },
+  actionText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#111',
+  },
+  directionsText: {
+    color: '#fff',
   },
   close: {
     paddingVertical: 16,
