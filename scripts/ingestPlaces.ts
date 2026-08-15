@@ -50,15 +50,24 @@ const PRICE_LEVEL_TO_BAND: Record<string, PriceBand> = {
   PRICE_LEVEL_VERY_EXPENSIVE: '$$$$',
 };
 
-/** Pure mapping, kept separate from the network call so it's unit-testable. */
-export function mapGoogleResultToRow(result: GooglePlaceResult, now: Date = new Date()): CuratedPlaceRow | null {
+/**
+ * Pure mapping, kept separate from the network call so it's unit-testable.
+ * `existingTags` carries forward any tags already assigned by the offline
+ * enrichment pipeline (issue #4) so a re-ingest refresh cycle never wipes
+ * them back to empty.
+ */
+export function mapGoogleResultToRow(
+  result: GooglePlaceResult,
+  now: Date = new Date(),
+  existingTags: string[] = [],
+): CuratedPlaceRow | null {
   if (!result.displayName?.text || !result.location) return null;
 
   return {
     place_id: result.id,
     name: result.displayName.text,
     category: result.primaryType ?? 'restaurant',
-    tags: [],
+    tags: existingTags,
     price_band: PRICE_LEVEL_TO_BAND[result.priceLevel ?? ''] ?? '$$',
     rating: result.rating ?? 0,
     lat: result.location.latitude,
@@ -101,13 +110,18 @@ async function searchNearby(
   return body.places ?? [];
 }
 
-async function fetchExistingRefreshDates(
+interface ExistingPlaceInfo {
+  refreshed_at: string;
+  tags: string[];
+}
+
+async function fetchExistingPlaces(
   supabaseUrl: string,
   serviceRoleKey: string,
   fetchImpl: typeof fetch,
-): Promise<Map<string, string>> {
+): Promise<Map<string, ExistingPlaceInfo>> {
   const url = new URL(`${supabaseUrl}/rest/v1/places`);
-  url.searchParams.set('select', 'place_id,refreshed_at');
+  url.searchParams.set('select', 'place_id,refreshed_at,tags');
 
   const response = await fetchImpl(url.toString(), {
     headers: { apikey: serviceRoleKey, Authorization: `Bearer ${serviceRoleKey}` },
@@ -115,8 +129,8 @@ async function fetchExistingRefreshDates(
   if (!response.ok) {
     throw new Error(`Supabase places lookup failed with status ${response.status}`);
   }
-  const rows = (await response.json()) as Array<{ place_id: string; refreshed_at: string }>;
-  return new Map(rows.map((row) => [row.place_id, row.refreshed_at]));
+  const rows = (await response.json()) as Array<{ place_id: string; refreshed_at: string; tags: string[] }>;
+  return new Map(rows.map((row) => [row.place_id, { refreshed_at: row.refreshed_at, tags: row.tags }]));
 }
 
 async function upsertRows(
@@ -154,7 +168,7 @@ export async function runIngest(options: {
   const fetchImpl = options.fetchImpl ?? fetch;
   const seedPoints = options.seedPoints ?? SEED_POINTS;
 
-  const existing = await fetchExistingRefreshDates(options.supabaseUrl, options.supabaseServiceRoleKey, fetchImpl);
+  const existing = await fetchExistingPlaces(options.supabaseUrl, options.supabaseServiceRoleKey, fetchImpl);
 
   const seen = new Set<string>();
   const rowsToUpsert: CuratedPlaceRow[] = [];
@@ -163,11 +177,12 @@ export async function runIngest(options: {
   for (const point of seedPoints) {
     const results = await searchNearby(point, options.googlePlacesApiKey, fetchImpl);
     for (const result of results) {
-      const row = mapGoogleResultToRow(result);
+      const existingInfo = existing.get(result.id);
+      const row = mapGoogleResultToRow(result, undefined, existingInfo?.tags ?? []);
       if (!row || seen.has(row.place_id)) continue;
       seen.add(row.place_id);
 
-      const priorRefresh = existing.get(row.place_id);
+      const priorRefresh = existingInfo?.refreshed_at;
       const dueForRefresh = !priorRefresh || needsRefresh({ refreshed_at: priorRefresh });
       if (!options.force && !dueForRefresh) {
         skipped += 1;

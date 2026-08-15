@@ -34,6 +34,20 @@ describe('mapGoogleResultToRow', () => {
     expect(mapGoogleResultToRow({ id: 'g1' })).toBeNull();
   });
 
+  it('carries forward existing tags so a re-ingest refresh does not wipe enrichment', () => {
+    const row = mapGoogleResultToRow(
+      {
+        id: 'g123',
+        displayName: { text: 'Fuunji' },
+        location: { latitude: 35.6595, longitude: 139.7005 },
+      },
+      new Date('2026-08-15T00:00:00.000Z'),
+      ['tsukemen', 'good-for:solo'],
+    );
+
+    expect(row?.tags).toEqual(['tsukemen', 'good-for:solo']);
+  });
+
   it('defaults missing rating, price level, and photos to safe values', () => {
     const row = mapGoogleResultToRow({
       id: 'g2',

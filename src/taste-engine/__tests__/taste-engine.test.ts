@@ -1,4 +1,4 @@
-import { emptyTasteGraph, rankDeck, updateTaste } from '..';
+import { emptyTasteGraph, rankDeck, updateTaste, whySurfaced } from '..';
 import type { Place, SwipeEvent, TasteGraph } from '../types';
 
 function place(overrides: Partial<Place>): Place {
@@ -126,5 +126,47 @@ describe('rankDeck', () => {
 
     expect(topCategories.filter((c) => c === 'ramen')).toHaveLength(3);
     expect(topCategories.slice(0, 3).every((c) => c === 'ramen')).toBe(true);
+  });
+
+  it('surfaces real enrichment vibe/specialty tags to the top for a synthetic taste profile', () => {
+    const enrichedPlaces: Place[] = [
+      place({
+        id: 'coffee-1',
+        category: 'cafe',
+        tags: ['minimal', 'third-wave espresso', 'good-for:solo', 'quiet'],
+      }),
+      place({
+        id: 'coffee-2',
+        category: 'cafe',
+        tags: ['minimal', 'third-wave espresso', 'good-for:solo', 'quiet'],
+      }),
+      place({ id: 'chain-1', category: 'cafe', tags: ['chain', 'good-for:groups', 'loud'] }),
+      place({ id: 'bar-1', category: 'cocktail-bar', tags: ['speakeasy', 'date-night'] }),
+    ];
+
+    let graph = emptyTasteGraph();
+    graph = updateTaste(
+      graph,
+      swipe(place({ id: 'seed-1', category: 'cafe', tags: ['minimal', 'third-wave espresso', 'good-for:solo', 'quiet'] }), 'been'),
+    );
+
+    const deck = rankDeck(graph, enrichedPlaces, { seed: 5 });
+    expect(deck[0].id).toBe('coffee-1');
+    expect(deck[1].id).toBe('coffee-2');
+  });
+});
+
+describe('whySurfaced', () => {
+  it('names the top matching signals in the taste vector', () => {
+    let graph = emptyTasteGraph();
+    graph = updateTaste(graph, swipe(place({ id: 'seed', category: 'cafe', tags: ['minimal', 'quiet'] }), 'been'));
+
+    const candidate = place({ id: 'p1', category: 'cafe', tags: ['minimal', 'quiet', 'loud'] });
+    expect(whySurfaced(graph.vector, candidate)).toBe('Because you like cafe + minimal');
+  });
+
+  it('returns undefined when nothing in the vector matches', () => {
+    const candidate = place({ id: 'p1', category: 'izakaya', tags: ['group-friendly'] });
+    expect(whySurfaced({}, candidate)).toBeUndefined();
   });
 });

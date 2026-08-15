@@ -1,4 +1,6 @@
-# Issue #4: LLM enrichment pipeline (taste tags per place)
+# LLM enrichment pipeline (taste tags per place)
+
+> GitHub issue #4 | Labels: ready-for-agent, P0 | https://github.com/taigamura/nibble-app/issues/4
 
 ## Parent
 
@@ -26,12 +28,12 @@ The `taste-engine` then ranks over these real tags instead of the placeholder ta
 
 ## Acceptance criteria
 
-- [ ] `EnrichmentProvider` tags each ingested place once from name + reviews and caches the tags permanently.
-- [ ] Enrichment is a batch/offline step; no LLM call happens during swiping.
-- [ ] The user preference vector and `rankDeck` fit score are computed over the enriched tag space.
-- [ ] Deck ordering visibly reflects real vibe/specialty tags for a known synthetic taste profile.
-- [ ] (Optional) A place can expose a short human-readable "why surfaced" derived from matching tags.
-- [ ] Enrichment cost stays one-time per place; re-running does not re-tag already-tagged places.
+- [x] `EnrichmentProvider` tags each ingested place once from name + reviews and caches the tags permanently.
+- [x] Enrichment is a batch/offline step; no LLM call happens during swiping.
+- [x] The user preference vector and `rankDeck` fit score are computed over the enriched tag space.
+- [x] Deck ordering visibly reflects real vibe/specialty tags for a known synthetic taste profile.
+- [x] (Optional) A place can expose a short human-readable "why surfaced" derived from matching tags.
+- [x] Enrichment cost stays one-time per place; re-running does not re-tag already-tagged places.
 
 ## Blocked by
 
