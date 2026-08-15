@@ -11,9 +11,7 @@ Issues and PRDs for this repo live as GitHub issues. Use the `gh` CLI for all op
 - **Apply / remove labels**: `gh issue edit <number> --add-label "..."` / `--remove-label "..."`
 - **Close**: `gh issue close <number> --comment "..."`
 
-Infer the repo from `git remote -v` — `gh` does this automatically when run inside a clone.
-
-> **Setup note:** This repo is not yet a git clone with a GitHub remote. Before the `gh`-based skills can run, initialize git and add a GitHub remote (`git init`, then `gh repo create` or `git remote add origin ...`).
+Infer the repo from `git remote -v` — `gh` does this automatically when run inside a clone. This repo's `origin` is `https://github.com/taigamura/nibble-app.git`.
 
 ## Pull requests as a triage surface
 

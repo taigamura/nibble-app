@@ -141,3 +141,31 @@ untouched), `npm exec -- expo export --platform ios` all green. No new
 test added for the same reason as loop #4 (UI/render-timing behavior,
 outside the exhaustively-tested `taste-engine` seam; would need
 `react-native-testing-library` to assert re-render behavior directly).
+
+## Loop #6 (2026-08-15): still blocked on spec sync — full code audit, one stale doc fixed
+Rechecked: `.ralph/specs/` is still only `issue-2.md`. Did a full read
+through every remaining source file (`providers/inMemory.ts`,
+`providers/types.ts`, `taste-engine/rankDeck.ts`, `rng.ts`,
+`fixtures/places.ts`, `App.tsx`, `index.ts`) looking for a third bug in the
+same vein as loops #4/#5 — found none. In particular checked: shared
+mutable state (`FixturePlacesProvider` returns the same `FIXTURE_PLACES`
+array reference every call, but `rankDeck` only ever `.filter()`/`.map()`s
+it, never mutates in place, so this is safe); the un-keyed decorative
+`behindCard` `<Card>` (its `PanResponder` is stale by the same pattern as
+the fixed bug, but `pointerEvents="none"` makes the gesture path
+unreachable, so it's inert, not a bug); `mulberry32`/`seededShuffle` edge
+cases (seed 0, empty array) — all fine.
+
+Also checked `docs/agents/*.md` for staleness (same category of fix as
+`AGENT.md` in loop #3) and found `issue-tracker.md` still said "This repo
+is not yet a git clone with a GitHub remote" — false, `git remote -v`
+shows `origin` already pointing at
+`https://github.com/taigamura/nibble-app.git` (matches the URL in
+`issue-2.md`'s spec header). Removed the stale setup note. Did **not**
+create the `CONTEXT.md` that `docs/agents/domain.md` references — that doc
+explicitly says to "proceed silently" and not create it speculatively;
+it's created lazily by the `/domain-modeling` skill, not by Ralph loops.
+
+No implementation change this loop (nothing left to fix after the audit);
+verify gate re-run to confirm nothing regressed: `npm run typecheck`,
+`npm test` (10/10), `npm exec -- expo export --platform ios`, all green.
