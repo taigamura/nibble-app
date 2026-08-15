@@ -16,9 +16,9 @@ import { OnboardingScreen } from './src/screens/OnboardingScreen';
 import { SignInPromptModal } from './src/screens/SignInPromptModal';
 import { SwipeScreen } from './src/screens/SwipeScreen';
 
-// Central Shibuya, used when location permission is denied or unavailable so
-// the deck degrades gracefully instead of blocking on a coordinate.
-const DEFAULT_LOCATION: GeoPoint = { lat: 35.6595, lng: 139.7005 };
+// Used when location permission is denied or unavailable so the deck degrades
+// gracefully instead of blocking on a coordinate.
+const DEFAULT_LOCATION: GeoPoint = { lat: 35.695601, lng: 139.8123635 };
 
 /**
  * Wraps a `LocationProvider` into a memoized `getUserLocation` callback: the

@@ -29,7 +29,10 @@ export class SupabasePlacesProvider implements PlacesProvider {
   private readonly fetchImpl: typeof fetch;
 
   constructor(private readonly options: SupabasePlacesProviderOptions) {
-    this.fetchImpl = options.fetchImpl ?? fetch;
+    // Bind the global fetch to its realm's global object; browsers throw
+    // "Illegal invocation" if window.fetch is called with any other `this`
+    // (which is what happens when it's stored on and called off an instance).
+    this.fetchImpl = options.fetchImpl ?? fetch.bind(globalThis);
   }
 
   async getCandidates(context?: DeckContext): Promise<Place[]> {

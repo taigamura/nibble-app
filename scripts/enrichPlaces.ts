@@ -3,9 +3,9 @@
  * doesn't have tags yet with LLM-derived vibe/specialty taste tags, and
  * persists them permanently in Supabase. See issue #4.
  *
- * Run with real credentials, e.g.:
+ * Run with real credentials (loads .env, then `npm run enrich`), e.g.:
  *   ANTHROPIC_API_KEY=... GOOGLE_PLACES_API_KEY=... SUPABASE_URL=... \
- *     SUPABASE_SERVICE_ROLE_KEY=... npx ts-node scripts/enrichPlaces.ts
+ *     SUPABASE_SERVICE_ROLE_KEY=... npm run enrich
  *
  * Re-running is safe and cheap: only rows with empty `tags` are selected,
  * so already-tagged places are never re-sent to the LLM.

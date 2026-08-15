@@ -62,6 +62,16 @@ describe('parseEnrichmentResponse', () => {
     const { vibe: _vibe, ...rest } = tags();
     expect(() => parseEnrichmentResponse(JSON.stringify(rest))).toThrow('vibe');
   });
+
+  it('coerces a scalar string into a single-element array for array fields', () => {
+    const raw = JSON.stringify({ ...tags(), good_for: 'solo' });
+    expect(parseEnrichmentResponse(raw)).toEqual(tags({ good_for: ['solo'] }));
+  });
+
+  it('coerces null/non-array array fields into empty arrays', () => {
+    const raw = JSON.stringify({ ...tags(), not_for: null });
+    expect(parseEnrichmentResponse(raw)).toEqual(tags({ not_for: [] }));
+  });
 });
 
 describe('buildEnrichmentPrompt', () => {

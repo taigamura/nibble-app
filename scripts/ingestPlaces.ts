@@ -3,9 +3,9 @@
  * Shibuya-Meguro-Setagaya beachhead from Google Places (New) and upserts
  * them into the curated Supabase `places` table (see supabase/schema.sql).
  *
- * Run with real credentials, e.g.:
+ * Run with real credentials (loads .env, then `npm run ingest`), e.g.:
  *   GOOGLE_PLACES_API_KEY=... SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... \
- *     npx ts-node scripts/ingestPlaces.ts
+ *     npm run ingest
  *
  * Re-running is safe: rows younger than 30 days are left untouched (their
  * `place_id` and our own `tags` are the only permanent Google-derived data;

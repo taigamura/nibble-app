@@ -32,7 +32,9 @@ export class SupabaseAppleAuthProvider implements AuthProvider {
   private session: AuthSession | null = null;
 
   constructor(private readonly options: SupabaseAppleAuthProviderOptions) {
-    this.fetchImpl = options.fetchImpl ?? fetch;
+    // Bound to the realm global; browsers throw "Illegal invocation" if
+    // window.fetch is called off an instance rather than the global object.
+    this.fetchImpl = options.fetchImpl ?? fetch.bind(globalThis);
     this.storage = options.storage ?? AsyncStorage;
   }
 
