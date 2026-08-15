@@ -169,3 +169,16 @@ it's created lazily by the `/domain-modeling` skill, not by Ralph loops.
 No implementation change this loop (nothing left to fix after the audit);
 verify gate re-run to confirm nothing regressed: `npm run typecheck`,
 `npm test` (10/10), `npm exec -- expo export --platform ios`, all green.
+
+## Loop #7 (2026-08-15): rechecked, unchanged — reporting BLOCKED, no busywork
+`.ralph/specs/` is still only `issue-2.md`; nothing about the sandbox
+(`gh` access) has changed since loop #2. Loops #4–#6 already covered the
+low-risk ground available without a spec: two real bugs fixed (stale
+closure in `Card.tsx`, seed re-randomization in `SwipeScreen.tsx`), a full
+read-through of every remaining source file turned up no third bug, and
+the stale docs found (`AGENT.md`, `issue-tracker.md`) are now corrected.
+Manufacturing further edits at this point would be padding, not progress —
+reporting BLOCKED cleanly instead of committing something contrived.
+**Unblock path is unchanged:** materialize `.ralph/specs/issue-3.md` (etc.)
+via whatever synced `issue-2.md` originally, since `gh` cannot be invoked
+from inside this session.
