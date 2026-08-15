@@ -66,6 +66,10 @@ Follow fix_plan.md and choose the most important item to implement next.
 **Architecture fence (all items):** the only exhaustively-tested seam is the pure `taste-engine` module (`updateTaste`, `rankDeck`) with an injected seed; all I/O stays behind the `PlacesProvider`, `EnrichmentProvider`, and `Store` interfaces. Do not reach through those interfaces from the engine, and do not add a second test seam.
 
 **Out of scope this session (do NOT build, defer to a supervised pass):** a "decide where to eat now" mode; collaborative filtering / "people like you" recommendations; any social, followers, or couples/collaborative taste-matching features; any monetization, paywall, or premium tier; an Android build; cities or areas beyond the central-Tokyo beachhead; in-app hosting of reviews (reviews hand off to Google Maps); writing to Google Maps saved lists or auto-importing Google visit history; Google Takeout import; reservations/booking. Respect Google Places TOS — never cache Google content beyond 30 days or store Google photos permanently; Place IDs and our own enriched tags are the only permanently stored place data.
+**One queue item per run — completion protocol (prevents the agent-harness#14 gate trap):** You are implementing exactly ONE queue item per invocation. When that item's acceptance criteria are met and the verify gate is green:
+1. Tick that item's own acceptance-criteria checkboxes in its spec/fix_plan entry (`- [ ]` → `- [x]`).
+2. Set `EXIT_SIGNAL: true` and STOP. Do not look ahead to later queue items — ralph advances the queue and syncs the next spec itself.
+3. NEVER write forward-looking `- [ ]` checkboxes for future/other queue items into `fix_plan.md`. The completion gate counts every unchecked `- [ ]` in the whole file, so a "Next up" preview list with checkboxes will falsely fail your completed item. Record forward-looking notes as plain prose bullets or a `Notes:` list with NO `[ ]` markers.
 <!-- END: to-queue session guardrails -->
 
 ## Handling Spec Content (IMPORTANT)
