@@ -2,11 +2,19 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { CollectionMap } from '../components/CollectionMap';
-import { getBeenCategoryStats, getBeenEntries, getMapPoints, getWantPlaces } from '../collection/selectors';
+import {
+  getBeenCategoryStats,
+  getBeenEntries,
+  getMapPoints,
+  getReviewTags,
+  getWantPlaces,
+} from '../collection/selectors';
 import type { BeenEntry } from '../collection/selectors';
 import type { Store } from '../providers/types';
+import { applyReview } from '../taste-engine';
 import type { Place, TasteGraph } from '../taste-engine';
 import { PlaceDetailModal } from './PlaceDetailModal';
+import { TonightSheet } from './TonightSheet';
 
 interface CollectionScreenProps {
   store: Store;
@@ -28,7 +36,12 @@ const TABS: { key: Tab; label: string }[] = [
 export function CollectionScreen({ store, canSignIn, signedIn, onRequestSignIn }: CollectionScreenProps) {
   const [graph, setGraph] = useState<TasteGraph | null>(null);
   const [tab, setTab] = useState<Tab>('want');
-  const [selected, setSelected] = useState<{ place: Place; rating?: number } | null>(null);
+  const [selected, setSelected] = useState<{
+    place: Place;
+    rating?: number;
+    canReview?: boolean;
+  } | null>(null);
+  const [tonightVisible, setTonightVisible] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -53,6 +66,13 @@ export function CollectionScreen({ store, canSignIn, signedIn, onRequestSignIn }
   const beenEntries = getBeenEntries(graph);
   const categoryStats = getBeenCategoryStats(graph);
   const mapPoints = getMapPoints(graph);
+  const beenIds = new Set(beenEntries.map((entry) => entry.place.id));
+
+  const handleSubmitReview = (placeId: string, rating: number, reviewTags: string[]) => {
+    const next = applyReview(graph, placeId, { rating, reviewTags });
+    setGraph(next);
+    void store.saveGraph(next);
+  };
 
   return (
     <View style={styles.container}>
@@ -76,11 +96,22 @@ export function CollectionScreen({ store, canSignIn, signedIn, onRequestSignIn }
       </View>
 
       {tab === 'want' && (
-        <PlaceList
-          data={wantPlaces.map((place) => ({ place }))}
-          emptyText="Swipe right on places to build your Want list."
-          onSelect={(entry) => setSelected(entry)}
-        />
+        <>
+          {wantPlaces.length > 0 && (
+            <Pressable
+              accessibilityLabel="Where should I go tonight?"
+              style={styles.tonightButton}
+              onPress={() => setTonightVisible(true)}
+            >
+              <Text style={styles.tonightButtonText}>🌙 Where to tonight?</Text>
+            </Pressable>
+          )}
+          <PlaceList
+            data={wantPlaces.map((place) => ({ place }))}
+            emptyText="Swipe right on places to build your Want list."
+            onSelect={(entry) => setSelected({ place: entry.place })}
+          />
+        </>
       )}
 
       {tab === 'been' && (
@@ -99,19 +130,37 @@ export function CollectionScreen({ store, canSignIn, signedIn, onRequestSignIn }
           <PlaceList
             data={beenEntries}
             emptyText="Places you mark Been will show up here."
-            onSelect={(entry) => setSelected(entry)}
+            onSelect={(entry) => setSelected({ ...entry, canReview: true })}
           />
         </>
       )}
 
       {tab === 'map' && (
-        <CollectionMap points={mapPoints} onSelect={(place) => setSelected({ place })} />
+        <CollectionMap
+          points={mapPoints}
+          onSelect={(place) =>
+            setSelected({
+              place,
+              rating: graph.ratings[place.id],
+              canReview: beenIds.has(place.id),
+            })
+          }
+        />
       )}
 
       <PlaceDetailModal
         place={selected?.place ?? null}
         rating={selected?.rating}
+        reviewTags={selected ? getReviewTags(graph, selected.place.id) : undefined}
+        onSubmitReview={selected?.canReview ? handleSubmitReview : undefined}
         onClose={() => setSelected(null)}
+      />
+
+      <TonightSheet
+        visible={tonightVisible}
+        wantPlaces={wantPlaces}
+        vector={graph.vector}
+        onClose={() => setTonightVisible(false)}
       />
     </View>
   );
@@ -207,6 +256,19 @@ const styles = StyleSheet.create({
   },
   tabTextActive: {
     color: '#fff',
+  },
+  tonightButton: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: '#007AFF',
+    alignItems: 'center',
+  },
+  tonightButtonText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '700',
   },
   stats: {
     flexDirection: 'row',

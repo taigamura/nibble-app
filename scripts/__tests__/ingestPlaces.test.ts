@@ -1,4 +1,4 @@
-import { mapGoogleResultToRow } from '../ingestPlaces';
+import { isFoodPrimaryType, mapGoogleResultToRow } from '../ingestPlaces';
 
 describe('mapGoogleResultToRow', () => {
   it('maps a Google Places (New) result into a curated place row', () => {
@@ -46,6 +46,36 @@ describe('mapGoogleResultToRow', () => {
     );
 
     expect(row?.tags).toEqual(['tsukemen', 'good-for:solo']);
+  });
+
+  it('rejects results whose primary type is not a food-and-drink type', () => {
+    const nonFood = mapGoogleResultToRow({
+      id: 'hotel1',
+      displayName: { text: 'Grand Hotel (has a restaurant inside)' },
+      primaryType: 'lodging',
+      location: { latitude: 35.6956, longitude: 139.8124 },
+    });
+    expect(nonFood).toBeNull();
+
+    const conbini = mapGoogleResultToRow({
+      id: 'conbini1',
+      displayName: { text: '7-Eleven' },
+      primaryType: 'convenience_store',
+      location: { latitude: 35.6956, longitude: 139.8124 },
+    });
+    expect(conbini).toBeNull();
+  });
+
+  it('keeps food-and-drink primary types (subtypes and the curated set)', () => {
+    expect(isFoodPrimaryType('japanese_restaurant')).toBe(true);
+    expect(isFoodPrimaryType('ramen_restaurant')).toBe(true);
+    expect(isFoodPrimaryType('cafe')).toBe(true);
+    expect(isFoodPrimaryType('coffee_shop')).toBe(true);
+    expect(isFoodPrimaryType('bakery')).toBe(true);
+    expect(isFoodPrimaryType(undefined)).toBe(true);
+    expect(isFoodPrimaryType('lodging')).toBe(false);
+    expect(isFoodPrimaryType('supermarket')).toBe(false);
+    expect(isFoodPrimaryType('gas_station')).toBe(false);
   });
 
   it('defaults missing rating, price level, and photos to safe values', () => {

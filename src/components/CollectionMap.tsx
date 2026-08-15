@@ -2,6 +2,7 @@ import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { projectPoints } from '../collection/mapProjection';
+import { elevate } from '../theme';
 import type { MapPoint } from '../collection/selectors';
 
 interface CollectionMapProps {
@@ -76,11 +77,7 @@ const styles = StyleSheet.create({
     marginTop: -14,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
-    shadowOffset: { width: 0, height: 1 },
-    elevation: 2,
+    ...elevate(1, 3, 0.2, 2),
   },
   pinBeen: {
     backgroundColor: '#27ae60',

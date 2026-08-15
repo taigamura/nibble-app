@@ -4,6 +4,7 @@ import { ActivityIndicator, FlatList, Image, Pressable, StyleSheet, Text, View }
 import { seedBeenSignals } from '../onboarding/seedBeenSignals';
 import type { PlacesProvider, Store } from '../providers/types';
 import type { Place } from '../taste-engine';
+import { colors, radius, shadow, spacing, type } from '../theme';
 
 interface OnboardingScreenProps {
   placesProvider: PlacesProvider;
@@ -20,7 +21,7 @@ interface OnboardingScreenProps {
   onComplete: () => void;
 }
 
-/** Cold-start "tap everywhere you've been" grid (issue #6). */
+/** Cold-start "tap everywhere you've been" list (issue #6). */
 export function OnboardingScreen({ placesProvider, store, requestLocation, onComplete }: OnboardingScreenProps) {
   const [places, setPlaces] = useState<Place[] | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -80,11 +81,14 @@ export function OnboardingScreen({ placesProvider, store, requestLocation, onCom
       <View style={styles.header}>
         <View style={styles.headerText}>
           <Text style={styles.title}>Where have you been?</Text>
-          <Text style={styles.subtitle}>Tap everywhere you recognize. About a minute.</Text>
+          <Text style={styles.subtitle}>
+            Tap everywhere you recognize. It takes about a minute, and it teaches your deck what you like.
+          </Text>
         </View>
         <Pressable
           accessibilityLabel="Skip onboarding"
-          style={styles.skip}
+          accessibilityRole="button"
+          style={({ pressed }) => [styles.skip, pressed && styles.pressed]}
           onPress={() => void finish(new Set())}
           disabled={finishing}
         >
@@ -94,40 +98,52 @@ export function OnboardingScreen({ placesProvider, store, requestLocation, onCom
       <FlatList
         data={places}
         keyExtractor={(item) => item.id}
-        numColumns={3}
-        contentContainerStyle={styles.grid}
+        // Single column: one photo per row, comfortably large and scrollable,
+        // instead of a cramped 3-wide grid of thumbnails.
+        numColumns={1}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.list}
         renderItem={({ item }) => {
           const isSelected = selected.has(item.id);
           return (
             <Pressable
               accessibilityLabel={`Been to ${item.name}`}
-              accessibilityState={{ selected: isSelected }}
+              accessibilityRole="checkbox"
+              accessibilityState={{ selected: isSelected, checked: isSelected }}
               style={[styles.tile, isSelected && styles.tileSelected]}
               onPress={() => toggle(item.id)}
             >
               <Image source={{ uri: item.photoUrl }} style={styles.tileImage} />
-              <Text style={styles.tileName} numberOfLines={1}>
-                {item.name}
-              </Text>
-              {isSelected && (
-                <View style={styles.checkBadge}>
-                  <Text style={styles.checkText}>✓</Text>
+              <View style={styles.tileBody}>
+                <View style={styles.tileTextGroup}>
+                  <Text style={styles.tileName} numberOfLines={1}>
+                    {item.name}
+                  </Text>
+                  <Text style={styles.tileMeta} numberOfLines={1}>
+                    {item.category} · {item.priceBand}
+                  </Text>
                 </View>
-              )}
+                <View style={[styles.checkBadge, isSelected && styles.checkBadgeSelected]}>
+                  {isSelected && <Text style={styles.checkText}>✓</Text>}
+                </View>
+              </View>
             </Pressable>
           );
         }}
       />
-      <Pressable
-        accessibilityLabel="Continue to deck"
-        style={styles.done}
-        onPress={() => void finish(selected)}
-        disabled={finishing}
-      >
-        <Text style={styles.doneText}>
-          {selected.size > 0 ? `Continue — ${selected.size} been` : 'Continue'}
-        </Text>
-      </Pressable>
+      <View style={styles.footer}>
+        <Pressable
+          accessibilityLabel="Continue to deck"
+          accessibilityRole="button"
+          style={({ pressed }) => [styles.done, pressed && styles.pressed]}
+          onPress={() => void finish(selected)}
+          disabled={finishing}
+        >
+          <Text style={styles.doneText}>
+            {selected.size > 0 ? `Continue — ${selected.size} been` : 'Continue'}
+          </Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -135,7 +151,7 @@ export function OnboardingScreen({ placesProvider, store, requestLocation, onCom
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f7f7f7',
+    backgroundColor: colors.groupedBackground,
   },
   center: {
     flex: 1,
@@ -146,86 +162,111 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 8,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.md,
+    gap: spacing.md,
   },
   headerText: {
     flex: 1,
-    paddingRight: 12,
   },
   title: {
-    fontSize: 20,
-    fontWeight: '700',
+    ...type.title1,
   },
   subtitle: {
-    fontSize: 13,
-    color: '#666',
-    marginTop: 4,
+    ...type.subheadline,
+    color: colors.secondaryLabel,
+    marginTop: spacing.sm,
   },
   skip: {
-    paddingVertical: 6,
-    paddingHorizontal: 10,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.pill,
+    backgroundColor: colors.fill,
   },
   skipText: {
-    fontSize: 14,
-    color: '#888',
+    ...type.footnote,
     fontWeight: '600',
+    color: colors.secondaryLabel,
   },
-  grid: {
-    paddingHorizontal: 8,
-    paddingBottom: 96,
+  list: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.xs,
+    // Clears the pinned Continue button so the last tile is fully tappable.
+    paddingBottom: 112,
+    gap: spacing.md,
   },
   tile: {
-    flex: 1 / 3,
-    margin: 4,
-    borderRadius: 10,
+    borderRadius: radius.lg,
     overflow: 'hidden',
-    backgroundColor: '#fff',
+    backgroundColor: colors.background,
     borderWidth: 2,
     borderColor: 'transparent',
+    ...shadow.sm,
   },
   tileSelected: {
-    borderColor: '#27ae60',
+    borderColor: colors.been,
   },
   tileImage: {
     width: '100%',
-    aspectRatio: 1,
-    backgroundColor: '#e5e5e5',
+    aspectRatio: 16 / 9,
+    backgroundColor: colors.fill,
+  },
+  tileBody: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    gap: spacing.md,
+  },
+  tileTextGroup: {
+    flex: 1,
   },
   tileName: {
-    fontSize: 11,
-    padding: 4,
+    ...type.headline,
+  },
+  tileMeta: {
+    ...type.footnote,
+    color: colors.secondaryLabel,
+    marginTop: spacing.xs / 2,
   },
   checkBadge: {
-    position: 'absolute',
-    top: 4,
-    right: 4,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: '#27ae60',
+    width: 28,
+    height: 28,
+    borderRadius: radius.pill,
+    borderWidth: 2,
+    borderColor: colors.separator,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  checkBadgeSelected: {
+    backgroundColor: colors.been,
+    borderColor: colors.been,
+  },
   checkText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  done: {
-    position: 'absolute',
-    left: 16,
-    right: 16,
-    bottom: 20,
-    backgroundColor: '#111',
-    borderRadius: 28,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  doneText: {
-    color: '#fff',
+    color: colors.labelOnColor,
     fontSize: 15,
     fontWeight: '700',
+  },
+  footer: {
+    position: 'absolute',
+    left: spacing.lg,
+    right: spacing.lg,
+    bottom: spacing.xl,
+  },
+  done: {
+    backgroundColor: colors.label,
+    borderRadius: radius.pill,
+    paddingVertical: spacing.lg,
+    alignItems: 'center',
+    ...shadow.md,
+  },
+  doneText: {
+    ...type.headline,
+    color: colors.labelOnColor,
+  },
+  pressed: {
+    opacity: 0.55,
   },
 });

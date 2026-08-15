@@ -35,6 +35,14 @@ export interface SwipeEvent {
    * be amended via `applyRating` once the user submits one.
    */
   rating?: number;
+  /**
+   * Optional user-affirmed tags from an in-app review ("great ramen", "cozy"),
+   * only meaningful on a 'been' event. Each is a subset of the place's own
+   * tags; a review adds an extra positive nudge to those specific signals on
+   * top of the rating weight (see `updateTaste`). Amended via `applyReview`,
+   * and replay-safe because it lives in history like `rating`.
+   */
+  reviewTags?: string[];
 }
 
 /**

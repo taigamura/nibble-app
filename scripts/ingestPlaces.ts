@@ -1,7 +1,8 @@
 /**
  * One-time (re-runnable) ingest: pulls cafes + restaurants across the
- * Shibuya-Meguro-Setagaya beachhead from Google Places (New) and upserts
- * them into the curated Supabase `places` table (see supabase/schema.sql).
+ * Kinshicho-Sumida beachhead (the default deck center) from Google Places
+ * (New) and upserts them into the curated Supabase `places` table (see
+ * supabase/schema.sql).
  *
  * Run with real credentials (loads .env, then `npm run ingest`), e.g.:
  *   GOOGLE_PLACES_API_KEY=... SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... \
@@ -16,17 +17,72 @@ import type { CuratedPlaceRow, GeoPoint } from '../src/providers/curatedPlace';
 import { needsRefresh } from '../src/providers/curatedPlace';
 import type { PriceBand } from '../src/taste-engine';
 
-/** Seed points spaced ~1.4km apart, covering the Shibuya-Meguro-Setagaya belt. */
+/**
+ * Seed points covering the Kinshicho-Sumida belt around the default deck
+ * center (App.tsx DEFAULT_LOCATION). These line up with the re-center presets
+ * in src/config/areas.ts so every preset area has curated places behind it.
+ */
 export const SEED_POINTS: GeoPoint[] = [
-  { lat: 35.6595, lng: 139.7005 }, // Shibuya
-  { lat: 35.6465, lng: 139.6989 }, // Ebisu / Daikanyama
-  { lat: 35.6339, lng: 139.6979 }, // Meguro
-  { lat: 35.6203, lng: 139.6699 }, // Setagaya / Sangenjaya
-  { lat: 35.6461, lng: 139.6656 }, // Shimokitazawa
+  { lat: 35.6956, lng: 139.8124 }, // Home / Kinshicho (default deck center)
+  { lat: 35.6976, lng: 139.8267 }, // Kameido
+  { lat: 35.6958, lng: 139.7933 }, // Ryogoku
+  { lat: 35.7101, lng: 139.8107 }, // Oshiage / Skytree
+  { lat: 35.6839, lng: 139.8175 }, // Sumiyoshi
 ];
 
 const INGEST_RADIUS_METERS = 1500;
 const INCLUDED_TYPES = ['cafe', 'restaurant'];
+
+/**
+ * Google's `searchNearby` `includedTypes` filter admits any place that
+ * *carries* a cafe/restaurant type, even when its **primary** type is
+ * something else -- a hotel, supermarket, convenience store, or gas station
+ * that happens to have a food counter. Those leak into the onboarding grid as
+ * non-food tiles. We keep only rows whose primary type is an actual
+ * food-and-drink type. Any `*_restaurant` subtype (japanese_restaurant,
+ * ramen_restaurant, ...) is accepted by suffix; the rest are listed here.
+ */
+const FOOD_PRIMARY_TYPES = new Set([
+  'restaurant',
+  'cafe',
+  'coffee_shop',
+  'bakery',
+  'bar',
+  'bar_and_grill',
+  'pub',
+  'wine_bar',
+  'tea_house',
+  'cafeteria',
+  'deli',
+  'diner',
+  'food_court',
+  'ice_cream_shop',
+  'dessert_shop',
+  'dessert_restaurant',
+  'donut_shop',
+  'bagel_shop',
+  'sandwich_shop',
+  'juice_shop',
+  'acai_shop',
+  'cat_cafe',
+  'dog_cafe',
+  'confectionery',
+  'candy_store',
+  'chocolate_shop',
+  'steak_house',
+  'meal_takeaway',
+  'meal_delivery',
+]);
+
+/**
+ * True when a Google `primaryType` is a food-and-drink establishment we want
+ * on the deck. A missing primaryType is kept: the place already matched the
+ * cafe/restaurant `includedTypes` filter, Google just didn't classify it.
+ */
+export function isFoodPrimaryType(primaryType: string | undefined): boolean {
+  if (!primaryType) return true;
+  return primaryType.endsWith('_restaurant') || FOOD_PRIMARY_TYPES.has(primaryType);
+}
 
 interface GooglePlaceResult {
   id: string;
@@ -62,6 +118,7 @@ export function mapGoogleResultToRow(
   existingTags: string[] = [],
 ): CuratedPlaceRow | null {
   if (!result.displayName?.text || !result.location) return null;
+  if (!isFoodPrimaryType(result.primaryType)) return null;
 
   return {
     place_id: result.id,

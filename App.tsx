@@ -1,7 +1,8 @@
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useRef, useState } from 'react';
-import { Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { AppShell } from './src/components/AppShell';
 import { migrateLocalDataToCloud } from './src/auth/migrateToCloud';
 import { isRealBackendConfigured, loadConfig } from './src/config/env';
 import { SupabaseAppleAuthProvider } from './src/providers/appleAuth';
@@ -15,6 +16,7 @@ import { CollectionScreen } from './src/screens/CollectionScreen';
 import { OnboardingScreen } from './src/screens/OnboardingScreen';
 import { SignInPromptModal } from './src/screens/SignInPromptModal';
 import { SwipeScreen } from './src/screens/SwipeScreen';
+import { colors, elevate, type } from './src/theme';
 
 // Used when location permission is denied or unavailable so the deck degrades
 // gracefully instead of blocking on a coordinate.
@@ -147,7 +149,7 @@ export default function App() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <AppShell>
       {onboarded ? (
         <>
           <View style={styles.screen}>
@@ -169,21 +171,25 @@ export default function App() {
           <View style={styles.tabBar}>
             <Pressable
               accessibilityLabel="Swipe tab"
+              accessibilityRole="tab"
               accessibilityState={{ selected: activeTab === 'swipe' }}
               style={styles.tabBarButton}
               onPress={() => handleTabChange('swipe')}
             >
-              <Text style={[styles.tabBarLabel, activeTab === 'swipe' && styles.tabBarLabelActive]}>
-                Swipe
+              <Text style={[styles.tabBarIcon, activeTab === 'swipe' && styles.tabBarActive]}>🍴</Text>
+              <Text style={[styles.tabBarLabel, activeTab === 'swipe' && styles.tabBarActive]}>
+                Discover
               </Text>
             </Pressable>
             <Pressable
               accessibilityLabel="Collection tab"
+              accessibilityRole="tab"
               accessibilityState={{ selected: activeTab === 'collection' }}
               style={styles.tabBarButton}
               onPress={() => handleTabChange('collection')}
             >
-              <Text style={[styles.tabBarLabel, activeTab === 'collection' && styles.tabBarLabelActive]}>
+              <Text style={[styles.tabBarIcon, activeTab === 'collection' && styles.tabBarActive]}>🗺️</Text>
+              <Text style={[styles.tabBarLabel, activeTab === 'collection' && styles.tabBarActive]}>
                 Collection
               </Text>
             </Pressable>
@@ -208,35 +214,41 @@ export default function App() {
         }}
       />
       <StatusBar style="auto" />
-    </SafeAreaView>
+    </AppShell>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f7f7f7',
-  },
   screen: {
     flex: 1,
   },
   tabBar: {
     flexDirection: 'row',
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#ddd',
-    backgroundColor: '#fff',
+    borderTopColor: colors.separator,
+    backgroundColor: colors.background,
+    paddingTop: 8,
+    paddingBottom: 6,
+    // Upward shadow (tab bar sits at the bottom edge), platform-aware so
+    // react-native-web doesn't warn on the deprecated shadow* props.
+    ...elevate(-1, 6, 0.08, 2),
   },
   tabBarButton: {
     flex: 1,
-    paddingVertical: 12,
     alignItems: 'center',
+    gap: 2,
+  },
+  tabBarIcon: {
+    fontSize: 22,
+    opacity: 0.35,
   },
   tabBarLabel: {
-    fontSize: 13,
+    ...type.caption2,
     fontWeight: '600',
-    color: '#999',
+    color: colors.secondaryLabel,
   },
-  tabBarLabelActive: {
-    color: '#111',
+  tabBarActive: {
+    opacity: 1,
+    color: colors.tint,
   },
 });

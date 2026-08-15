@@ -1,18 +1,56 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Image, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import type { Place } from '../taste-engine';
+import { colors, radius, spacing, type } from '../theme';
 import { buildDirectionsUrl, buildWriteReviewUrl } from './googleMapsLinks';
 
 interface PlaceDetailModalProps {
   place: Place | null;
   /** The user's own Been rating, when this place came from the Been list. */
   rating?: number;
+  /** Tags the user already affirmed in a prior in-app review, to pre-select. */
+  reviewTags?: string[];
+  /**
+   * When provided, the in-app review UI (stars + tag chips) is shown -- this
+   * is the private "sharpen my taste" action, only meaningful for a place the
+   * user has actually been. Omit it (e.g. from the swipe deck's detail view)
+   * to render a read-only sheet.
+   */
+  onSubmitReview?: (placeId: string, rating: number, reviewTags: string[]) => void;
   onClose: () => void;
 }
 
+const STARS = [1, 2, 3, 4, 5];
+
 /** Opening any collection item (Want/Been list row or map pin) shows this. */
-export function PlaceDetailModal({ place, rating, onClose }: PlaceDetailModalProps) {
+export function PlaceDetailModal({
+  place,
+  rating,
+  reviewTags,
+  onSubmitReview,
+  onClose,
+}: PlaceDetailModalProps) {
+  const [draftRating, setDraftRating] = useState<number>(rating ?? 0);
+  const [draftTags, setDraftTags] = useState<string[]>(reviewTags ?? []);
+
+  // Reset the draft whenever a different place (or its saved review) opens,
+  // so the stars/chips reflect this place rather than the last one reviewed.
+  useEffect(() => {
+    setDraftRating(rating ?? 0);
+    setDraftTags(reviewTags ?? []);
+  }, [place?.id, rating, reviewTags]);
+
+  const toggleTag = (tag: string) => {
+    setDraftTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]));
+  };
+
+  const submitReview = () => {
+    if (!place || draftRating === 0) return;
+    onSubmitReview?.(place.id, draftRating, draftTags);
+    onClose();
+  };
+
   return (
     <Modal visible={place !== null} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.backdrop}>
@@ -26,9 +64,6 @@ export function PlaceDetailModal({ place, rating, onClose }: PlaceDetailModalPro
                   {place.category} · {place.priceBand} · ★{place.rating.toFixed(1)} ·{' '}
                   {Math.round(place.distanceMeters)}m
                 </Text>
-                {rating !== undefined && (
-                  <Text style={styles.yourRating}>Your rating: {'★'.repeat(rating)}</Text>
-                )}
                 {place.tags.length > 0 && (
                   <View style={styles.tags}>
                     {place.tags.map((tag) => (
@@ -36,6 +71,57 @@ export function PlaceDetailModal({ place, rating, onClose }: PlaceDetailModalPro
                         <Text style={styles.tagText}>{tag}</Text>
                       </View>
                     ))}
+                  </View>
+                )}
+
+                {onSubmitReview && (
+                  <View style={styles.review}>
+                    <Text style={styles.reviewTitle}>Your review</Text>
+                    <Text style={styles.reviewSub}>
+                      Rate it to sharpen your recommendations. Stays private.
+                    </Text>
+                    <View style={styles.stars}>
+                      {STARS.map((n) => (
+                        <Pressable
+                          key={n}
+                          accessibilityLabel={`Rate ${n} star${n === 1 ? '' : 's'}`}
+                          accessibilityState={{ selected: draftRating >= n }}
+                          style={styles.starButton}
+                          onPress={() => setDraftRating(n)}
+                        >
+                          <Text style={[styles.star, draftRating >= n && styles.starOn]}>★</Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                    {place.tags.length > 0 && (
+                      <>
+                        <Text style={styles.chipsLabel}>What stood out?</Text>
+                        <View style={styles.chips}>
+                          {place.tags.map((tag) => {
+                            const on = draftTags.includes(tag);
+                            return (
+                              <Pressable
+                                key={tag}
+                                accessibilityLabel={`${tag} tag`}
+                                accessibilityState={{ selected: on }}
+                                style={[styles.chip, on && styles.chipOn]}
+                                onPress={() => toggleTag(tag)}
+                              >
+                                <Text style={[styles.chipText, on && styles.chipTextOn]}>{tag}</Text>
+                              </Pressable>
+                            );
+                          })}
+                        </View>
+                      </>
+                    )}
+                    <Pressable
+                      accessibilityLabel="Save review"
+                      accessibilityState={{ disabled: draftRating === 0 }}
+                      style={[styles.saveButton, draftRating === 0 && styles.saveButtonDisabled]}
+                      onPress={submitReview}
+                    >
+                      <Text style={styles.saveButtonText}>Save review</Text>
+                    </Pressable>
                   </View>
                 )}
               </View>
@@ -51,11 +137,11 @@ export function PlaceDetailModal({ place, rating, onClose }: PlaceDetailModalPro
                 <Text style={[styles.actionText, styles.directionsText]}>Directions</Text>
               </Pressable>
               <Pressable
-                accessibilityLabel="Write a review"
-                style={[styles.actionButton, styles.writeReview]}
+                accessibilityLabel="Write a Google review"
+                style={[styles.actionButton, styles.googleReview]}
                 onPress={() => Linking.openURL(buildWriteReviewUrl(place))}
               >
-                <Text style={styles.actionText}>Write a review</Text>
+                <Text style={styles.actionText}>Google review</Text>
               </Pressable>
             </View>
           )}
@@ -71,90 +157,153 @@ export function PlaceDetailModal({ place, rating, onClose }: PlaceDetailModalPro
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    backgroundColor: colors.scrim,
     justifyContent: 'flex-end',
   },
   sheet: {
-    maxHeight: '80%',
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    maxHeight: '88%',
+    backgroundColor: colors.background,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
     overflow: 'hidden',
   },
   photo: {
     width: '100%',
-    height: 240,
-    backgroundColor: '#e5e5e5',
+    height: 220,
+    backgroundColor: colors.fill,
   },
   body: {
-    padding: 20,
+    padding: spacing.xl,
   },
   name: {
-    fontSize: 22,
-    fontWeight: '700',
+    ...type.title1,
   },
   meta: {
-    marginTop: 4,
-    fontSize: 14,
-    color: '#666',
-  },
-  yourRating: {
-    marginTop: 10,
-    fontSize: 15,
-    color: '#f5a623',
-    fontWeight: '600',
+    ...type.subheadline,
+    marginTop: spacing.xs,
+    color: colors.secondaryLabel,
   },
   tags: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginTop: 14,
-    gap: 8,
+    marginTop: spacing.md,
+    gap: spacing.sm,
   },
   tag: {
-    backgroundColor: '#f0f0f0',
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    backgroundColor: colors.fill,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs + 1,
   },
   tagText: {
-    fontSize: 12,
-    color: '#444',
+    ...type.caption1,
+    color: colors.label,
+  },
+  review: {
+    marginTop: spacing.xl,
+    paddingTop: spacing.lg,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.separator,
+  },
+  reviewTitle: {
+    ...type.headline,
+  },
+  reviewSub: {
+    ...type.footnote,
+    marginTop: spacing.xs,
+  },
+  stars: {
+    flexDirection: 'row',
+    marginTop: spacing.md,
+  },
+  starButton: {
+    paddingHorizontal: spacing.xs + 1,
+  },
+  star: {
+    fontSize: 34,
+    color: colors.tertiaryLabel,
+  },
+  starOn: {
+    color: colors.star,
+  },
+  chipsLabel: {
+    ...type.footnote,
+    marginTop: spacing.md,
+  },
+  chips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: spacing.sm,
+    gap: spacing.sm,
+  },
+  chip: {
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs + 2,
+    backgroundColor: colors.fill,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  chipOn: {
+    backgroundColor: colors.background,
+    borderColor: colors.tint,
+  },
+  chipText: {
+    ...type.footnote,
+    color: colors.label,
+  },
+  chipTextOn: {
+    color: colors.tint,
+    fontWeight: '600',
+  },
+  saveButton: {
+    marginTop: spacing.lg,
+    paddingVertical: spacing.md,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    backgroundColor: colors.tint,
+  },
+  saveButtonDisabled: {
+    opacity: 0.4,
+  },
+  saveButtonText: {
+    ...type.headline,
+    color: colors.labelOnColor,
   },
   actions: {
     flexDirection: 'row',
-    gap: 10,
-    paddingHorizontal: 20,
-    paddingBottom: 16,
+    gap: spacing.sm,
+    paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.lg,
   },
   actionButton: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: 10,
+    paddingVertical: spacing.md,
+    borderRadius: radius.md,
     alignItems: 'center',
   },
   directions: {
-    backgroundColor: '#111',
+    backgroundColor: colors.label,
   },
-  writeReview: {
-    backgroundColor: '#f0f0f0',
+  googleReview: {
+    backgroundColor: colors.fill,
   },
   actionText: {
-    fontSize: 14,
+    ...type.subheadline,
     fontWeight: '700',
-    color: '#111',
+    color: colors.label,
   },
   directionsText: {
-    color: '#fff',
+    color: colors.labelOnColor,
   },
   close: {
-    paddingVertical: 16,
+    paddingVertical: spacing.lg,
     alignItems: 'center',
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#e5e5e5',
+    borderTopColor: colors.separator,
   },
   closeText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#111',
+    ...type.headline,
+    color: colors.label,
   },
 });

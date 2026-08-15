@@ -9,6 +9,7 @@ import { applyRating, emptyTasteGraph, rankDeck, updateTaste } from '../taste-en
 import type { Place, SwipeAction, SwipeEvent, TasteGraph } from '../taste-engine';
 import { DeckContextControl } from './DeckContextControl';
 import { PlaceDetailModal } from './PlaceDetailModal';
+import { colors, radius, shadow, spacing, type } from '../theme';
 
 interface SwipeScreenProps {
   placesProvider: PlacesProvider;
@@ -121,9 +122,10 @@ export function SwipeScreen({ placesProvider, store, seed }: SwipeScreenProps) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
+        <Text style={styles.title}>Discover</Text>
         <Pressable
           accessibilityLabel="Change deck area"
-          style={styles.areaButton}
+          style={({ pressed }) => [styles.areaButton, pressed && styles.pressed]}
           onPress={() => setContextControlVisible(true)}
         >
           <Text style={styles.areaButtonText}>📍 {radiusLabel}</Text>
@@ -141,7 +143,7 @@ export function SwipeScreen({ placesProvider, store, seed }: SwipeScreenProps) {
           </View>
         )}
         {nextPlace && (
-          <View style={styles.behindCard} pointerEvents="none">
+          <View style={[styles.behindCard, { pointerEvents: 'none' }]}>
             <Card place={nextPlace} onSwiped={() => {}} />
           </View>
         )}
@@ -155,31 +157,54 @@ export function SwipeScreen({ placesProvider, store, seed }: SwipeScreenProps) {
           />
         )}
       </View>
+      <Text style={styles.swipeHint}>
+        Swipe ← Nope · ↑ Been · → Want, or use the buttons below
+      </Text>
       <View style={styles.controls}>
-        <Pressable
-          accessibilityLabel="Nope"
-          style={[styles.button, styles.nope]}
-          onPress={() => handleButtonPress('nope')}
-        >
-          <Text style={styles.buttonText}>✕</Text>
-        </Pressable>
-        <Pressable accessibilityLabel="Undo" style={[styles.button, styles.undo]} onPress={handleUndo}>
-          <Text style={styles.buttonText}>↺</Text>
-        </Pressable>
-        <Pressable
-          accessibilityLabel="Been"
-          style={[styles.button, styles.been]}
-          onPress={() => handleButtonPress('been')}
-        >
-          <Text style={styles.buttonText}>✓</Text>
-        </Pressable>
-        <Pressable
-          accessibilityLabel="Want"
-          style={[styles.button, styles.want]}
-          onPress={() => handleButtonPress('want')}
-        >
-          <Text style={styles.buttonText}>♥</Text>
-        </Pressable>
+        <View style={styles.controlItem}>
+          <Pressable
+            accessibilityLabel="Nope"
+            accessibilityHint="Not interested — swipe left"
+            style={({ pressed }) => [styles.button, styles.nope, pressed && styles.buttonPressed]}
+            onPress={() => handleButtonPress('nope')}
+          >
+            <Text style={[styles.buttonText, { color: colors.nope }]}>✕</Text>
+          </Pressable>
+          <Text style={styles.controlLabel}>Nope</Text>
+        </View>
+        <View style={styles.controlItem}>
+          <Pressable
+            accessibilityLabel="Undo"
+            accessibilityHint="Undo your last swipe"
+            style={({ pressed }) => [styles.button, styles.undo, pressed && styles.buttonPressed]}
+            onPress={handleUndo}
+          >
+            <Text style={[styles.buttonText, styles.undoText]}>↺</Text>
+          </Pressable>
+          <Text style={styles.controlLabel}>Undo</Text>
+        </View>
+        <View style={styles.controlItem}>
+          <Pressable
+            accessibilityLabel="Been"
+            accessibilityHint="Been here — swipe up"
+            style={({ pressed }) => [styles.button, styles.been, pressed && styles.buttonPressed]}
+            onPress={() => handleButtonPress('been')}
+          >
+            <Text style={[styles.buttonText, { color: colors.been }]}>✓</Text>
+          </Pressable>
+          <Text style={styles.controlLabel}>Been</Text>
+        </View>
+        <View style={styles.controlItem}>
+          <Pressable
+            accessibilityLabel="Want"
+            accessibilityHint="Want to go — swipe right"
+            style={({ pressed }) => [styles.button, styles.want, pressed && styles.buttonPressed]}
+            onPress={() => handleButtonPress('want')}
+          >
+            <Text style={[styles.buttonText, styles.wantText, { color: colors.want }]}>♥</Text>
+          </Pressable>
+          <Text style={styles.controlLabel}>Want</Text>
+        </View>
       </View>
       {pendingRating && (
         <RatingPrompt
@@ -206,35 +231,45 @@ export function SwipeScreen({ placesProvider, store, seed }: SwipeScreenProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f7f7f7',
+    backgroundColor: colors.groupedBackground,
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
-    paddingHorizontal: 16,
-    paddingTop: 8,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.xs,
+  },
+  title: {
+    ...type.title1,
   },
   areaButton: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 16,
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#ddd',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: spacing.xs + 1,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.pill,
+    backgroundColor: colors.fill,
   },
   areaButtonText: {
-    fontSize: 13,
+    ...type.footnote,
     fontWeight: '600',
-    color: '#333',
+    color: colors.tint,
+  },
+  pressed: {
+    opacity: 0.55,
   },
   center: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: spacing.xxl,
   },
   emptyText: {
-    fontSize: 16,
-    color: '#666',
+    ...type.body,
+    color: colors.secondaryLabel,
+    textAlign: 'center',
   },
   deck: {
     flex: 1,
@@ -245,33 +280,59 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    transform: [{ scale: 0.96 }],
-    opacity: 0.6,
+    transform: [{ scale: 0.94 }],
+    opacity: 0.5,
+  },
+  swipeHint: {
+    ...type.footnote,
+    color: colors.secondaryLabel,
+    textAlign: 'center',
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
   },
   controls: {
     flexDirection: 'row',
     justifyContent: 'space-evenly',
+    alignItems: 'flex-start',
+    paddingTop: spacing.md,
+    paddingBottom: spacing.xl,
+  },
+  controlItem: {
     alignItems: 'center',
-    paddingVertical: 20,
+    gap: spacing.xs + 2,
+  },
+  controlLabel: {
+    ...type.caption2,
+    fontWeight: '600',
+    color: colors.secondaryLabel,
   },
   button: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 60,
+    height: 60,
+    borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#fff',
-    shadowColor: '#000',
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 3,
+    backgroundColor: colors.background,
+    ...shadow.sm,
   },
-  nope: { borderColor: '#e74c3c', borderWidth: 2 },
-  been: { borderColor: '#27ae60', borderWidth: 2 },
-  want: { borderColor: '#e91e63', borderWidth: 2 },
-  undo: { width: 44, height: 44, borderRadius: 22 },
+  buttonPressed: {
+    transform: [{ scale: 0.92 }],
+    opacity: 0.9,
+  },
+  nope: {},
+  been: {},
+  want: {},
+  undo: { width: 48, height: 48 },
   buttonText: {
+    fontSize: 26,
+    fontWeight: '600',
+    lineHeight: 30,
+  },
+  undoText: {
     fontSize: 22,
+    color: colors.secondaryLabel,
+  },
+  wantText: {
+    fontSize: 24,
   },
 });

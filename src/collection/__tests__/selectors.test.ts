@@ -1,6 +1,13 @@
 import { emptyTasteGraph, updateTaste } from '../../taste-engine';
 import type { Place, SwipeEvent, TasteGraph } from '../../taste-engine';
-import { getBeenCategoryStats, getBeenEntries, getMapPoints, getWantPlaces } from '../selectors';
+import {
+  getBeenCategoryStats,
+  getBeenEntries,
+  getMapPoints,
+  getReviewTags,
+  getWantPlaces,
+} from '../selectors';
+import { applyReview } from '../../taste-engine';
 
 function place(overrides: Partial<Place> & Pick<Place, 'id' | 'category'>): Place {
   return {
@@ -43,6 +50,21 @@ describe('getBeenEntries', () => {
   it('omits rating when the been event was skipped', () => {
     const graph = graphWith([{ place: BEEN_PLACE, action: 'been', timestamp: 1 }]);
     expect(getBeenEntries(graph)).toEqual([{ place: BEEN_PLACE, rating: undefined }]);
+  });
+});
+
+describe('getReviewTags', () => {
+  it('returns the tags affirmed in an in-app review', () => {
+    const reviewed = place({ id: 'r1', category: 'ramen', tags: ['tonkotsu', 'cozy'] });
+    let graph = graphWith([{ place: reviewed, action: 'been', timestamp: 1 }]);
+    graph = applyReview(graph, 'r1', { rating: 5, reviewTags: ['tonkotsu'] });
+
+    expect(getReviewTags(graph, 'r1')).toEqual(['tonkotsu']);
+  });
+
+  it('returns an empty array for a place with no review', () => {
+    const graph = graphWith([{ place: BEEN_PLACE, action: 'been', timestamp: 1 }]);
+    expect(getReviewTags(graph, BEEN_PLACE.id)).toEqual([]);
   });
 });
 

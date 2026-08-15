@@ -2,6 +2,7 @@ import React, { forwardRef, useImperativeHandle, useRef } from 'react';
 import { Animated, Image, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { Place, SwipeAction } from '../taste-engine';
+import { colors, radius, shadow, spacing, type } from '../theme';
 
 const SWIPE_THRESHOLD = 120;
 const OFF_SCREEN_DISTANCE = 600;
@@ -87,6 +88,25 @@ export const Card = forwardRef<CardHandle, CardProps>(({ place, onSwiped, onInfo
     outputRange: ['-15deg', '0deg', '15deg'],
   });
 
+  // Directional guides: each stamp fades in as the drag crosses toward its
+  // threshold, so the user sees what releasing now would do before committing.
+  // want = drag right, nope = drag left, been = drag up (see `directionFor`).
+  const wantOpacity = position.x.interpolate({
+    inputRange: [0, SWIPE_THRESHOLD],
+    outputRange: [0, 1],
+    extrapolate: 'clamp',
+  });
+  const nopeOpacity = position.x.interpolate({
+    inputRange: [-SWIPE_THRESHOLD, 0],
+    outputRange: [1, 0],
+    extrapolate: 'clamp',
+  });
+  const beenOpacity = position.y.interpolate({
+    inputRange: [-SWIPE_THRESHOLD, 0],
+    outputRange: [1, 0],
+    extrapolate: 'clamp',
+  });
+
   return (
     <Animated.View
       {...panResponder.panHandlers}
@@ -97,6 +117,30 @@ export const Card = forwardRef<CardHandle, CardProps>(({ place, onSwiped, onInfo
       ]}
     >
       <Image source={{ uri: place.photoUrl }} style={styles.photo} />
+      {onInfoPress && (
+        <>
+          <Animated.View
+            testID={`guide-want-${place.id}`}
+            style={[styles.guide, styles.guideWant, { opacity: wantOpacity, pointerEvents: 'none' }]}
+          >
+            <Text style={[styles.guideText, { color: colors.want }]}>♥ WANT</Text>
+          </Animated.View>
+          <Animated.View
+            testID={`guide-nope-${place.id}`}
+            style={[styles.guide, styles.guideNope, { opacity: nopeOpacity, pointerEvents: 'none' }]}
+          >
+            <Text style={[styles.guideText, { color: colors.nope }]}>NOPE ✕</Text>
+          </Animated.View>
+          <Animated.View
+            testID={`guide-been-${place.id}`}
+            style={[styles.guideBeenRow, { opacity: beenOpacity, pointerEvents: 'none' }]}
+          >
+            <View style={[styles.guide, styles.guideBeen]}>
+              <Text style={[styles.guideText, { color: colors.been }]}>✓ BEEN</Text>
+            </View>
+          </Animated.View>
+        </>
+      )}
       {onInfoPress && (
         <Pressable
           accessibilityLabel={`View details for ${place.name}`}
@@ -122,47 +166,85 @@ const styles = StyleSheet.create({
   card: {
     position: 'absolute',
     width: '90%',
-    height: '75%',
-    borderRadius: 20,
-    backgroundColor: '#fff',
-    shadowColor: '#000',
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 6,
+    height: '78%',
+    borderRadius: radius.xl,
+    backgroundColor: colors.background,
+    ...shadow.lg,
     overflow: 'hidden',
     alignSelf: 'center',
   },
   photo: {
     width: '100%',
     height: '78%',
+    backgroundColor: colors.fill,
+  },
+  guide: {
+    position: 'absolute',
+    top: spacing.xl,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.md,
+    borderWidth: 3,
+    backgroundColor: 'rgba(255,255,255,0.85)',
+  },
+  guideWant: {
+    left: spacing.xl,
+    transform: [{ rotate: '-14deg' }],
+    borderColor: colors.want,
+  },
+  guideNope: {
+    right: spacing.xl,
+    transform: [{ rotate: '14deg' }],
+    borderColor: colors.nope,
+  },
+  // Full-width row that horizontally centers the "been" stamp (an absolutely
+  // positioned child can't be centered with alignSelf, so we center via a
+  // flex row instead).
+  guideBeenRow: {
+    position: 'absolute',
+    top: spacing.xl,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+  },
+  guideBeen: {
+    top: undefined,
+    position: 'relative',
+    borderColor: colors.been,
+  },
+  guideText: {
+    fontSize: 20,
+    fontWeight: '800',
+    letterSpacing: 1,
   },
   infoButton: {
     position: 'absolute',
-    top: 12,
-    right: 12,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    top: spacing.md,
+    right: spacing.md,
+    width: 34,
+    height: 34,
+    borderRadius: radius.pill,
+    backgroundColor: 'rgba(0,0,0,0.4)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   infoButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '700',
+    color: colors.labelOnColor,
+    fontSize: 18,
+    fontWeight: '600',
   },
   info: {
-    padding: 16,
+    flex: 1,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    justifyContent: 'center',
   },
   name: {
-    fontSize: 22,
-    fontWeight: '700',
+    ...type.title2,
   },
   meta: {
-    marginTop: 4,
-    fontSize: 14,
-    color: '#666',
+    ...type.subheadline,
+    marginTop: spacing.xs,
+    color: colors.secondaryLabel,
   },
 });

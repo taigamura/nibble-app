@@ -26,6 +26,18 @@ export function getBeenEntries(graph: TasteGraph): BeenEntry[] {
     .map((event) => ({ place: event.place, rating: graph.ratings[event.place.id] }));
 }
 
+/**
+ * The tags a user affirmed in an in-app review of a Been place, so the detail
+ * sheet can re-open with those chips already selected. Derived from history
+ * (like the Want/Been surfaces) rather than a separate store field.
+ */
+export function getReviewTags(graph: TasteGraph, placeId: string): string[] {
+  const event = graph.history.find(
+    (e) => e.action === 'been' && e.place.id === placeId && e.reviewTags !== undefined
+  );
+  return event?.reviewTags ?? [];
+}
+
 export interface CategoryStat {
   category: string;
   count: number;
