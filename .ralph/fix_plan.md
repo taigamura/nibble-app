@@ -61,3 +61,17 @@ interface (`src/providers/types.ts`) without touching the `taste-engine`
 seam — same pattern as `FixturePlacesProvider` in
 `src/providers/inMemory.ts`, with fetch mocked in tests so no live API key
 is needed to keep `npm test` green.
+
+## Loop #3 (2026-08-15): rechecked, still blocked — did documentation instead
+`.ralph/specs/` still only has `issue-2.md`; `queue.json` still carries
+titles only for issues #3–#10, and `gh` is still not invocable. Every
+remaining queued item is blocked the same way (none of #3, #4, #5, #6, #7,
+#8, #9, #10 have a spec), so there's no unblocked implementation task
+available this loop.
+
+Instead, fixed `.ralph/AGENT.md`, which still said "No build/test/run
+command configured" even though the app has been buildable/testable since
+issue #2 landed — stale docs would have sent a future loop (or the
+`ralph enable --sync` harness) down the wrong path. Verified the new
+commands (`npm run typecheck`, `npm test`) are actually green before
+committing.
