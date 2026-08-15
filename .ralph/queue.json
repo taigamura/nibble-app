@@ -1,0 +1,276 @@
+{
+  "version": "1.0",
+  "created_at": "2026-08-15T05:59:22+00:00",
+  "updated_at": "2026-08-15T08:43:28+00:00",
+  "repository": "",
+  "queue": [
+    {
+      "source": "github",
+      "issue_number": 2,
+      "title": "Swipe loop over fixtures with live taste-engine",
+      "priority": "P0",
+      "labels": [
+        {
+          "id": "LA_kwDOT49h488AAAACwaoi8w",
+          "name": "ready-for-agent",
+          "description": "Fully specified, ready for an AFK agent",
+          "color": "0e8a16"
+        },
+        {
+          "id": "LA_kwDOT49h488AAAACwapEtA",
+          "name": "P0",
+          "description": "Critical / must ship first",
+          "color": "b60205"
+        }
+      ],
+      "milestone": null,
+      "dependencies": [],
+      "id": "github-2",
+      "status": "completed",
+      "added_at": "2026-08-15T05:59:24+00:00",
+      "started_at": "2026-08-15T06:24:45+00:00",
+      "completed_at": "2026-08-15T06:43:35+00:00",
+      "error_message": null
+    },
+    {
+      "source": "github",
+      "issue_number": 3,
+      "title": "Real place data: Google Places ingest + curated DB",
+      "priority": "P0",
+      "labels": [
+        {
+          "id": "LA_kwDOT49h488AAAACwaoi8w",
+          "name": "ready-for-agent",
+          "description": "Fully specified, ready for an AFK agent",
+          "color": "0e8a16"
+        },
+        {
+          "id": "LA_kwDOT49h488AAAACwapEtA",
+          "name": "P0",
+          "description": "Critical / must ship first",
+          "color": "b60205"
+        }
+      ],
+      "milestone": null,
+      "dependencies": [
+        2
+      ],
+      "id": "github-3",
+      "status": "completed",
+      "added_at": "2026-08-15T05:59:25+00:00",
+      "started_at": "2026-08-15T08:13:16+00:00",
+      "completed_at": "2026-08-15T08:21:34+00:00",
+      "error_message": ""
+    },
+    {
+      "source": "github",
+      "issue_number": 4,
+      "title": "LLM enrichment pipeline (taste tags per place)",
+      "priority": "P0",
+      "labels": [
+        {
+          "id": "LA_kwDOT49h488AAAACwaoi8w",
+          "name": "ready-for-agent",
+          "description": "Fully specified, ready for an AFK agent",
+          "color": "0e8a16"
+        },
+        {
+          "id": "LA_kwDOT49h488AAAACwapEtA",
+          "name": "P0",
+          "description": "Critical / must ship first",
+          "color": "b60205"
+        }
+      ],
+      "milestone": null,
+      "dependencies": [
+        3
+      ],
+      "id": "github-4",
+      "status": "completed",
+      "added_at": "2026-08-15T05:59:25+00:00",
+      "started_at": "2026-08-15T08:21:34+00:00",
+      "completed_at": "2026-08-15T08:27:38+00:00",
+      "error_message": ""
+    },
+    {
+      "source": "github",
+      "issue_number": 5,
+      "title": "Rating flow (the gold ground-truth signal)",
+      "priority": "P0",
+      "labels": [
+        {
+          "id": "LA_kwDOT49h488AAAACwaoi8w",
+          "name": "ready-for-agent",
+          "description": "Fully specified, ready for an AFK agent",
+          "color": "0e8a16"
+        },
+        {
+          "id": "LA_kwDOT49h488AAAACwapEtA",
+          "name": "P0",
+          "description": "Critical / must ship first",
+          "color": "b60205"
+        }
+      ],
+      "milestone": null,
+      "dependencies": [
+        2
+      ],
+      "id": "github-5",
+      "status": "completed",
+      "added_at": "2026-08-15T05:59:26+00:00",
+      "started_at": "2026-08-15T08:27:38+00:00",
+      "completed_at": "2026-08-15T08:31:41+00:00",
+      "error_message": ""
+    },
+    {
+      "source": "github",
+      "issue_number": 6,
+      "title": "Onboarding 'been' grid + location permission",
+      "priority": "P1",
+      "labels": [
+        {
+          "id": "LA_kwDOT49h488AAAACwaoi8w",
+          "name": "ready-for-agent",
+          "description": "Fully specified, ready for an AFK agent",
+          "color": "0e8a16"
+        },
+        {
+          "id": "LA_kwDOT49h488AAAACwapEyw",
+          "name": "P1",
+          "description": "Important",
+          "color": "fbca04"
+        }
+      ],
+      "milestone": null,
+      "dependencies": [
+        3
+      ],
+      "id": "github-6",
+      "status": "completed",
+      "added_at": "2026-08-15T05:59:27+00:00",
+      "started_at": "2026-08-15T08:31:41+00:00",
+      "completed_at": "2026-08-15T08:36:13+00:00",
+      "error_message": ""
+    },
+    {
+      "source": "github",
+      "issue_number": 7,
+      "title": "Collection & history (Want / Been lists, stats, map)",
+      "priority": "P1",
+      "labels": [
+        {
+          "id": "LA_kwDOT49h488AAAACwaoi8w",
+          "name": "ready-for-agent",
+          "description": "Fully specified, ready for an AFK agent",
+          "color": "0e8a16"
+        },
+        {
+          "id": "LA_kwDOT49h488AAAACwapEyw",
+          "name": "P1",
+          "description": "Important",
+          "color": "fbca04"
+        }
+      ],
+      "milestone": null,
+      "dependencies": [
+        2
+      ],
+      "id": "github-7",
+      "status": "completed",
+      "added_at": "2026-08-15T05:59:28+00:00",
+      "started_at": "2026-08-15T08:36:13+00:00",
+      "completed_at": "2026-08-15T08:41:04+00:00",
+      "error_message": ""
+    },
+    {
+      "source": "github",
+      "issue_number": 8,
+      "title": "Google Maps handoff (directions + write-a-review)",
+      "priority": "P1",
+      "labels": [
+        {
+          "id": "LA_kwDOT49h488AAAACwaoi8w",
+          "name": "ready-for-agent",
+          "description": "Fully specified, ready for an AFK agent",
+          "color": "0e8a16"
+        },
+        {
+          "id": "LA_kwDOT49h488AAAACwapEyw",
+          "name": "P1",
+          "description": "Important",
+          "color": "fbca04"
+        }
+      ],
+      "milestone": null,
+      "dependencies": [
+        3
+      ],
+      "id": "github-8",
+      "status": "completed",
+      "added_at": "2026-08-15T05:59:29+00:00",
+      "started_at": "2026-08-15T08:41:04+00:00",
+      "completed_at": "2026-08-15T08:43:28+00:00",
+      "error_message": ""
+    },
+    {
+      "source": "github",
+      "issue_number": 9,
+      "title": "Anonymous-first auth + Supabase sync",
+      "priority": "P1",
+      "labels": [
+        {
+          "id": "LA_kwDOT49h488AAAACwaoi8w",
+          "name": "ready-for-agent",
+          "description": "Fully specified, ready for an AFK agent",
+          "color": "0e8a16"
+        },
+        {
+          "id": "LA_kwDOT49h488AAAACwapEyw",
+          "name": "P1",
+          "description": "Important",
+          "color": "fbca04"
+        }
+      ],
+      "milestone": null,
+      "dependencies": [
+        2
+      ],
+      "id": "github-9",
+      "status": "processing",
+      "added_at": "2026-08-15T05:59:29+00:00",
+      "started_at": "2026-08-15T08:43:28+00:00",
+      "completed_at": null,
+      "error_message": ""
+    },
+    {
+      "source": "github",
+      "issue_number": 10,
+      "title": "Radius / area context control",
+      "priority": "P2",
+      "labels": [
+        {
+          "id": "LA_kwDOT49h488AAAACwaoi8w",
+          "name": "ready-for-agent",
+          "description": "Fully specified, ready for an AFK agent",
+          "color": "0e8a16"
+        },
+        {
+          "id": "LA_kwDOT49h488AAAACwapE4w",
+          "name": "P2",
+          "description": "Nice-to-have",
+          "color": "0e8a16"
+        }
+      ],
+      "milestone": null,
+      "dependencies": [
+        3
+      ],
+      "id": "github-10",
+      "status": "pending",
+      "added_at": "2026-08-15T05:59:30+00:00",
+      "started_at": null,
+      "completed_at": null,
+      "error_message": ""
+    }
+  ]
+}
