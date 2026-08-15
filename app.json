@@ -1,0 +1,19 @@
+{
+  "expo": {
+    "name": "nibble",
+    "slug": "nibble-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "app.nibble.mvp"
+    },
+    "android": {
+      "package": "app.nibble.mvp"
+    },
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}
