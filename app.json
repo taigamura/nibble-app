@@ -14,6 +14,14 @@
     },
     "web": {
       "bundler": "metro"
-    }
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Nibble uses your location to show nearby places worth swiping on."
+        }
+      ]
+    ]
   }
 }

@@ -1,4 +1,5 @@
 import type { Place, PriceBand } from '../taste-engine';
+import type { GeoPoint } from './types';
 
 /**
  * Row shape of the curated `places` table (see supabase/schema.sql). This is
@@ -20,10 +21,7 @@ export interface CuratedPlaceRow {
   refreshed_at: string;
 }
 
-export interface GeoPoint {
-  lat: number;
-  lng: number;
-}
+export type { GeoPoint } from './types';
 
 const EARTH_RADIUS_METERS = 6_371_000;
 

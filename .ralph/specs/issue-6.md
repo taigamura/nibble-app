@@ -1,4 +1,6 @@
-# Issue #6: Onboarding 'been' grid + location permission
+# Onboarding 'been' grid + location permission
+
+> GitHub issue #6 | Labels: ready-for-agent, P1 | https://github.com/taigamura/nibble-app/issues/6
 
 ## Parent
 
@@ -12,11 +14,11 @@ The grid must feel like a quick game, be skippable/shortenable, and never block 
 
 ## Acceptance criteria
 
-- [ ] First launch requests location permission with a clear rationale and degrades gracefully if denied.
-- [ ] A grid of popular/nearby real places lets the user multi-tap their visited spots quickly.
-- [ ] Tapped places seed the graph as Been signals via `updateTaste`.
-- [ ] The grid is skippable and shortenable; the user is never blocked from the swipe deck.
-- [ ] After completing the grid, the first deck reflects the seeded taste (not a cold/random order).
+- [x] First launch requests location permission with a clear rationale and degrades gracefully if denied.
+- [x] A grid of popular/nearby real places lets the user multi-tap their visited spots quickly.
+- [x] Tapped places seed the graph as Been signals via `updateTaste`.
+- [x] The grid is skippable and shortenable; the user is never blocked from the swipe deck.
+- [x] After completing the grid, the first deck reflects the seeded taste (not a cold/random order).
 
 ## Blocked by
 

@@ -1,5 +1,10 @@
 import type { Place, TasteGraph } from '../taste-engine';
 
+export interface GeoPoint {
+  lat: number;
+  lng: number;
+}
+
 /**
  * Sources the deck of candidate places for a session. The fixture
  * implementation is in-memory; issue #3 adds a real Google Places-backed
@@ -7,6 +12,16 @@ import type { Place, TasteGraph } from '../taste-engine';
  */
 export interface PlacesProvider {
   getCandidates(): Promise<Place[]>;
+}
+
+/**
+ * Requests OS location permission and resolves the device's current
+ * position. Resolves to `null` (rather than throwing) when permission is
+ * denied or location is otherwise unavailable, so onboarding can degrade
+ * gracefully instead of blocking the user from reaching the deck.
+ */
+export interface LocationProvider {
+  getCurrentLocation(): Promise<GeoPoint | null>;
 }
 
 /**
