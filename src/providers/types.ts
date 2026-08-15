@@ -35,10 +35,28 @@ export interface EnrichmentProvider {
 
 /**
  * Persists session state (taste graph). The in-memory implementation lives
- * only for the process lifetime; a later slice can back this with device
- * storage or Supabase without changing call sites.
+ * only for the process lifetime; `LocalStore` (issue #9) backs this with
+ * on-device storage for anonymous users, and `SupabaseStore` backs it with
+ * the cloud for signed-in ones, without changing call sites.
  */
 export interface Store {
   getGraph(): Promise<TasteGraph>;
   saveGraph(graph: TasteGraph): Promise<void>;
+}
+
+/** An authenticated identity, scoping which cloud `Store` rows belong to this user. */
+export interface AuthSession {
+  userId: string;
+  accessToken: string;
+}
+
+/**
+ * Anonymous-first auth (issue #9): a new user never sees this until they
+ * choose to sign in. `getSession` restores a previously-established session
+ * (e.g. after an app restart); it resolves to `null` rather than throwing
+ * when there is none, mirroring `LocationProvider`'s graceful-degrade shape.
+ */
+export interface AuthProvider {
+  getSession(): Promise<AuthSession | null>;
+  signInWithApple(): Promise<AuthSession>;
 }

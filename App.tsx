@@ -1,14 +1,19 @@
 import { StatusBar } from 'expo-status-bar';
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
 
+import { migrateLocalDataToCloud } from './src/auth/migrateToCloud';
 import { isRealBackendConfigured, loadConfig } from './src/config/env';
-import { FixturePlacesProvider, InMemoryStore, NoopEnrichmentProvider } from './src/providers/inMemory';
+import { SupabaseAppleAuthProvider } from './src/providers/appleAuth';
+import { FixturePlacesProvider, NoopEnrichmentProvider } from './src/providers/inMemory';
+import { LocalStore } from './src/providers/localStore';
 import { ExpoLocationProvider } from './src/providers/location';
 import { SupabasePlacesProvider } from './src/providers/supabasePlaces';
-import type { GeoPoint, LocationProvider, PlacesProvider } from './src/providers/types';
+import { SupabaseStore } from './src/providers/supabaseStore';
+import type { AuthProvider, AuthSession, GeoPoint, LocationProvider, PlacesProvider, Store } from './src/providers/types';
 import { CollectionScreen } from './src/screens/CollectionScreen';
 import { OnboardingScreen } from './src/screens/OnboardingScreen';
+import { SignInPromptModal } from './src/screens/SignInPromptModal';
 import { SwipeScreen } from './src/screens/SwipeScreen';
 
 // Central Shibuya, used when location permission is denied or unavailable so
@@ -44,14 +49,102 @@ function createPlacesProvider(getUserLocation: () => Promise<GeoPoint>): PlacesP
   });
 }
 
+/** `null` when the real backend isn't configured -- Sign in with Apple stays hidden and the app runs fully anonymous/local, same fallback rule as `createPlacesProvider`. */
+function createAuthProvider(): AuthProvider | null {
+  const config = loadConfig();
+  if (!isRealBackendConfigured(config)) return null;
+  return new SupabaseAppleAuthProvider({
+    supabaseUrl: config.supabaseUrl!,
+    supabaseAnonKey: config.supabaseAnonKey!,
+  });
+}
+
+/**
+ * The cloud `Store`, created once so its identity is stable across renders;
+ * it reads whichever session `getSession` currently resolves to rather than
+ * capturing one at construction time, since sign-in happens well after this
+ * runs.
+ */
+function createCloudStore(getSession: () => Promise<AuthSession>): Store | null {
+  const config = loadConfig();
+  if (!isRealBackendConfigured(config)) return null;
+  return new SupabaseStore({
+    supabaseUrl: config.supabaseUrl!,
+    supabaseAnonKey: config.supabaseAnonKey!,
+    getSession,
+  });
+}
+
 export default function App() {
   const locationProvider = useRef(new ExpoLocationProvider()).current;
   const getUserLocation = useRef(createUserLocationResolver(locationProvider)).current;
   const placesProvider = useRef(createPlacesProvider(getUserLocation)).current;
   const enrichmentProvider = useRef(new NoopEnrichmentProvider()).current;
-  const store = useRef(new InMemoryStore()).current;
+  const localStore = useRef(new LocalStore()).current;
+  const authProvider = useRef(createAuthProvider()).current;
+  const sessionRef = useRef<AuthSession | null>(null);
+  const cloudStore = useRef(
+    createCloudStore(async () => {
+      if (!sessionRef.current) throw new Error('No auth session');
+      return sessionRef.current;
+    })
+  ).current;
+
   const [onboarded, setOnboarded] = useState(false);
   const [activeTab, setActiveTab] = useState<'swipe' | 'collection'>('swipe');
+  const [session, setSession] = useState<AuthSession | null>(null);
+  const [signInPromptVisible, setSignInPromptVisible] = useState(false);
+  const [hasPromptedThisRun, setHasPromptedThisRun] = useState(false);
+  const [signingIn, setSigningIn] = useState(false);
+  const [signInError, setSignInError] = useState<string | null>(null);
+
+  // Restores a previously-established session (e.g. after a cold restart) so
+  // a signed-in user lands on their cloud store without re-prompting.
+  useEffect(() => {
+    if (!authProvider) return;
+    let cancelled = false;
+    (async () => {
+      const restored = await authProvider.getSession();
+      if (!cancelled && restored) {
+        sessionRef.current = restored;
+        setSession(restored);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [authProvider]);
+
+  const store = session && cloudStore ? cloudStore : localStore;
+
+  const handleTabChange = (tab: 'swipe' | 'collection') => {
+    const leavingFirstSwipeSession = tab === 'collection' && activeTab === 'swipe';
+    setActiveTab(tab);
+    if (leavingFirstSwipeSession && !session && authProvider && !hasPromptedThisRun) {
+      setHasPromptedThisRun(true);
+      setSignInPromptVisible(true);
+    }
+  };
+
+  const handleSignIn = async () => {
+    if (!authProvider) return;
+    setSigningIn(true);
+    setSignInError(null);
+    try {
+      const newSession = await authProvider.signInWithApple();
+      sessionRef.current = newSession;
+      if (cloudStore) {
+        await migrateLocalDataToCloud(localStore, cloudStore);
+        await localStore.clear();
+      }
+      setSession(newSession);
+      setSignInPromptVisible(false);
+    } catch (err) {
+      setSignInError(err instanceof Error ? err.message : 'Sign-in failed. Try again.');
+    } finally {
+      setSigningIn(false);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -65,7 +158,12 @@ export default function App() {
                 store={store}
               />
             ) : (
-              <CollectionScreen store={store} />
+              <CollectionScreen
+                store={store}
+                canSignIn={authProvider !== null}
+                signedIn={session !== null}
+                onRequestSignIn={() => setSignInPromptVisible(true)}
+              />
             )}
           </View>
           <View style={styles.tabBar}>
@@ -73,7 +171,7 @@ export default function App() {
               accessibilityLabel="Swipe tab"
               accessibilityState={{ selected: activeTab === 'swipe' }}
               style={styles.tabBarButton}
-              onPress={() => setActiveTab('swipe')}
+              onPress={() => handleTabChange('swipe')}
             >
               <Text style={[styles.tabBarLabel, activeTab === 'swipe' && styles.tabBarLabelActive]}>
                 Swipe
@@ -83,7 +181,7 @@ export default function App() {
               accessibilityLabel="Collection tab"
               accessibilityState={{ selected: activeTab === 'collection' }}
               style={styles.tabBarButton}
-              onPress={() => setActiveTab('collection')}
+              onPress={() => handleTabChange('collection')}
             >
               <Text style={[styles.tabBarLabel, activeTab === 'collection' && styles.tabBarLabelActive]}>
                 Collection
@@ -99,6 +197,16 @@ export default function App() {
           onComplete={() => setOnboarded(true)}
         />
       )}
+      <SignInPromptModal
+        visible={signInPromptVisible}
+        signingIn={signingIn}
+        error={signInError}
+        onSignIn={handleSignIn}
+        onDismiss={() => {
+          setSignInPromptVisible(false);
+          setSignInError(null);
+        }}
+      />
       <StatusBar style="auto" />
     </SafeAreaView>
   );

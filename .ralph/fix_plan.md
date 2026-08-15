@@ -1,10 +1,12 @@
 # Ralph Fix Plan (queue item)
 
 ## Current Task
-- [x] Implement GitHub issue #8
-  - Spec: .ralph/specs/issue-8.md
+- [x] Implement GitHub issue #9
+  - Spec: .ralph/specs/issue-9.md
 
-Notes:
-- Added src/screens/googleMapsLinks.ts with buildDirectionsUrl / buildWriteReviewUrl pure helpers (tested), keyed off the stored Google Place ID only.
-- PlaceDetailModal now renders Directions / Write a review buttons that call Linking.openURL with those helpers.
-- Card gained an optional onInfoPress affordance (ⓘ button) so the swipe screen can open the same PlaceDetailModal that Collection already used.
+Notes: anonymous-first auth landed behind the existing Store/AuthProvider
+interfaces (LocalStore on AsyncStorage, SupabaseStore + SupabaseAppleAuthProvider
+over plain fetch, pure mergeTasteGraphs/migrateLocalDataToCloud for lossless
+migration). No native build was run against a real Apple/Supabase account
+(no device/simulator or deployed backend in this environment) -- verified via
+typecheck, jest, and `expo export`.

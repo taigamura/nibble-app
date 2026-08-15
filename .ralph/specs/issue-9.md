@@ -1,4 +1,6 @@
-# Issue #9: Anonymous-first auth + Supabase sync
+# Anonymous-first auth + Supabase sync
+
+> GitHub issue #9 | Labels: ready-for-agent, P1 | https://github.com/taigamura/nibble-app/issues/9
 
 ## Parent
 
@@ -12,11 +14,11 @@ End-to-end: swipe anonymously → prompt at the right moment → Sign in with Ap
 
 ## Acceptance criteria
 
-- [ ] A brand-new user can complete onboarding and swipe with no account, state cached locally.
-- [ ] The Sign-in-with-Apple prompt appears only after the first session or at a sync/review/second-device moment — never before first value.
-- [ ] Signing in migrates local graph + Want + Been data to the cloud `Store` without loss.
-- [ ] A signed-in user sees the same graph/collection on a second device.
-- [ ] No feature of the personal graph/history is paywalled.
+- [x] A brand-new user can complete onboarding and swipe with no account, state cached locally.
+- [x] The Sign-in-with-Apple prompt appears only after the first session or at a sync/review/second-device moment — never before first value.
+- [x] Signing in migrates local graph + Want + Been data to the cloud `Store` without loss.
+- [x] A signed-in user sees the same graph/collection on a second device.
+- [x] No feature of the personal graph/history is paywalled.
 
 ## Blocked by
 

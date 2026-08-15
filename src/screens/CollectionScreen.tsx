@@ -10,6 +10,11 @@ import { PlaceDetailModal } from './PlaceDetailModal';
 
 interface CollectionScreenProps {
   store: Store;
+  /** Whether Sign in with Apple is available at all (false when the real backend isn't configured). */
+  canSignIn?: boolean;
+  signedIn?: boolean;
+  /** Opens the sign-in prompt (issue #9) -- this is the "sync" moment named in the acceptance criteria. */
+  onRequestSignIn?: () => void;
 }
 
 type Tab = 'want' | 'been' | 'map';
@@ -20,7 +25,7 @@ const TABS: { key: Tab; label: string }[] = [
   { key: 'map', label: 'Map' },
 ];
 
-export function CollectionScreen({ store }: CollectionScreenProps) {
+export function CollectionScreen({ store, canSignIn, signedIn, onRequestSignIn }: CollectionScreenProps) {
   const [graph, setGraph] = useState<TasteGraph | null>(null);
   const [tab, setTab] = useState<Tab>('want');
   const [selected, setSelected] = useState<{ place: Place; rating?: number } | null>(null);
@@ -51,6 +56,11 @@ export function CollectionScreen({ store }: CollectionScreenProps) {
 
   return (
     <View style={styles.container}>
+      {canSignIn && !signedIn && (
+        <Pressable accessibilityLabel="Sync across devices" style={styles.syncBanner} onPress={onRequestSignIn}>
+          <Text style={styles.syncBannerText}>Sync across devices</Text>
+        </Pressable>
+      )}
       <View style={styles.tabs}>
         {TABS.map(({ key, label }) => (
           <Pressable
@@ -161,6 +171,19 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#888',
     textAlign: 'center',
+  },
+  syncBanner: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: '#111',
+    alignItems: 'center',
+  },
+  syncBannerText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '700',
   },
   tabs: {
     flexDirection: 'row',
