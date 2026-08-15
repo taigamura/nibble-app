@@ -16,6 +16,13 @@ export interface Place {
   rating: number;
   distanceMeters: number;
   photoUrl: string;
+  /**
+   * Optional coordinates, present when the source provider has real geo data
+   * (curated DB rows always do; hand-authored fixtures may omit them). The
+   * collection map view skips any place missing these rather than guessing.
+   */
+  lat?: number;
+  lng?: number;
 }
 
 export interface SwipeEvent {

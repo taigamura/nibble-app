@@ -59,6 +59,8 @@ export function toPlace(row: CuratedPlaceRow, userLocation: GeoPoint, googlePlac
     priceBand: row.price_band,
     rating: row.rating,
     distanceMeters: Math.round(haversineMeters(userLocation, { lat: row.lat, lng: row.lng })),
+    lat: row.lat,
+    lng: row.lng,
     photoUrl: row.photo_reference
       ? buildPhotoUrl(row.photo_reference, googlePlacesApiKey)
       : FALLBACK_PHOTO_URL,

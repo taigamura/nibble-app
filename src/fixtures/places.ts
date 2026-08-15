@@ -2,7 +2,9 @@ import type { Place } from '../taste-engine';
 
 /**
  * Hardcoded fixture places for the tracer-bullet slice. No Google, no
- * Supabase — issue #3 replaces this with a real PlacesProvider.
+ * Supabase — issue #3 replaces this with a real PlacesProvider. Coordinates
+ * are approximate real central-Tokyo locations so the collection map view
+ * has something plausible to plot in fixture/dev mode.
  */
 export const FIXTURE_PLACES: Place[] = [
   {
@@ -14,6 +16,8 @@ export const FIXTURE_PLACES: Place[] = [
     rating: 4.5,
     distanceMeters: 450,
     photoUrl: 'https://picsum.photos/seed/fuunji/600/800',
+    lat: 35.6913,
+    lng: 139.6997,
   },
   {
     id: 'p2',
@@ -24,6 +28,8 @@ export const FIXTURE_PLACES: Place[] = [
     rating: 4.7,
     distanceMeters: 1200,
     photoUrl: 'https://picsum.photos/seed/bartrench/600/800',
+    lat: 35.6690,
+    lng: 139.6997,
   },
   {
     id: 'p3',
@@ -34,6 +40,8 @@ export const FIXTURE_PLACES: Place[] = [
     rating: 4.2,
     distanceMeters: 800,
     photoUrl: 'https://picsum.photos/seed/afuri/600/800',
+    lat: 35.6586,
+    lng: 139.7016,
   },
   {
     id: 'p4',
@@ -44,6 +52,8 @@ export const FIXTURE_PLACES: Place[] = [
     rating: 4.0,
     distanceMeters: 600,
     photoUrl: 'https://picsum.photos/seed/nabezo/600/800',
+    lat: 35.6595,
+    lng: 139.7005,
   },
   {
     id: 'p5',
@@ -54,6 +64,8 @@ export const FIXTURE_PLACES: Place[] = [
     rating: 4.3,
     distanceMeters: 2100,
     photoUrl: 'https://picsum.photos/seed/albatross/600/800',
+    lat: 35.6938,
+    lng: 139.7034,
   },
   {
     id: 'p6',
@@ -64,6 +76,8 @@ export const FIXTURE_PLACES: Place[] = [
     rating: 4.8,
     distanceMeters: 3400,
     photoUrl: 'https://picsum.photos/seed/sushidai/600/800',
+    lat: 35.6654,
+    lng: 139.7707,
   },
   {
     id: 'p7',
@@ -74,6 +88,8 @@ export const FIXTURE_PLACES: Place[] = [
     rating: 4.1,
     distanceMeters: 950,
     photoUrl: 'https://picsum.photos/seed/ippudo/600/800',
+    lat: 35.6580,
+    lng: 139.7215,
   },
   {
     id: 'p8',
@@ -84,6 +100,8 @@ export const FIXTURE_PLACES: Place[] = [
     rating: 4.6,
     distanceMeters: 1600,
     photoUrl: 'https://picsum.photos/seed/sgclub/600/800',
+    lat: 35.6716,
+    lng: 139.6998,
   },
   {
     id: 'p9',
@@ -94,6 +112,8 @@ export const FIXTURE_PLACES: Place[] = [
     rating: 4.4,
     distanceMeters: 1750,
     photoUrl: 'https://picsum.photos/seed/tsuta/600/800',
+    lat: 35.7295,
+    lng: 139.7109,
   },
   {
     id: 'p10',
@@ -104,5 +124,7 @@ export const FIXTURE_PLACES: Place[] = [
     rating: 4.0,
     distanceMeters: 700,
     photoUrl: 'https://picsum.photos/seed/maruhachi/600/800',
+    lat: 35.6605,
+    lng: 139.7010,
   },
 ];
