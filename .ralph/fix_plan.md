@@ -29,7 +29,35 @@
 
 ## Next up (not started)
 - [ ] GitHub issue #3 — Real place data: Google Places ingest + curated DB
-  (depends on #2, now unblocked)
+  (depends on #2, now unblocked) — **BLOCKED, see below**
 - [ ] GitHub issue #5 — Rating flow (depends on #2, now unblocked)
 - [ ] GitHub issue #7 — Collection & history (depends on #2, now unblocked)
 - [ ] GitHub issue #9 — Anonymous-first auth + Supabase sync (depends on #2, now unblocked)
+
+## Loop #2 (2026-08-15): BLOCKED on issue #3 — missing spec, no fetch path
+Attempted to pick up GitHub issue #3 next (per queue priority in
+`.ralph/queue.json`). Unlike issue #2, no `.ralph/specs/issue-3.md` exists,
+and `queue.json` only carries the title ("Real place data: Google Places
+ingest + curated DB"), not the issue body/acceptance criteria. Confirmed
+`gh` is not invocable in this session (`gh --version` is auto-blocked, same
+as `npx`/`mv`/`rm` — outside the `.ralphrc` `ALLOWED_TOOLS` allowlist), so
+there is no way to pull the real issue body from GitHub this loop, and no
+local PRD (`CONTEXT.md`, `docs/adr/`) covers it either.
+
+Issue #3 is exactly the kind of slice where guessing is costly: it involves
+a real external API (Google Places), API-key handling, and TOS-sensitive
+data-retention rules (guardrails say: never cache Google content beyond 30
+days, never store Google photos permanently, only Place IDs + our own tags
+persist). Building against a title alone risks landing something that
+doesn't match the actual acceptance criteria and has to be redone. Made no
+code changes this loop — nothing to revert.
+
+**Unblock path:** run whatever step populated `.ralph/specs/issue-2.md`
+(the `ralph enable --sync` / queue-sync step, or `gh issue view 3` from a
+session where `gh` is allowed) to materialize `.ralph/specs/issue-3.md`
+before the next loop. Once that spec exists, the real
+`GooglePlacesProvider` can be built behind the existing `PlacesProvider`
+interface (`src/providers/types.ts`) without touching the `taste-engine`
+seam — same pattern as `FixturePlacesProvider` in
+`src/providers/inMemory.ts`, with fetch mocked in tests so no live API key
+is needed to keep `npm test` green.
