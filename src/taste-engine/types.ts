@@ -22,6 +22,12 @@ export interface SwipeEvent {
   place: Place;
   action: SwipeAction;
   timestamp: number;
+  /**
+   * Optional 1-5 star rating, only meaningful on a 'been' event. Ratings are
+   * deferrable: a 'been' event may land with no rating (skipped), then later
+   * be amended via `applyRating` once the user submits one.
+   */
+  rating?: number;
 }
 
 /**
@@ -34,6 +40,8 @@ export interface TasteGraph {
   vector: TasteVector;
   actionedPlaceIds: string[];
   history: SwipeEvent[];
+  /** Submitted ratings (1-5) keyed by place id, retrievable independent of history order. */
+  ratings: Record<string, number>;
 }
 
 export interface RankContext {

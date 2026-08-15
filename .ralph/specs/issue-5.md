@@ -1,4 +1,6 @@
-# Issue #5: Rating flow (the gold ground-truth signal)
+# Rating flow (the gold ground-truth signal)
+
+> GitHub issue #5 | Labels: ready-for-agent, P0 | https://github.com/taigamura/nibble-app/issues/5
 
 ## Parent
 
@@ -12,11 +14,11 @@ End-to-end: Been action → quick rating UI → `updateTaste(graph, ratingEvent)
 
 ## Acceptance criteria
 
-- [ ] Marking a place Been triggers a quick rating prompt that can be dismissed/deferred without blocking swiping.
-- [ ] A submitted Been rating moves the preference vector more than a Want, which moves it more than a Nope.
-- [ ] The deck measurably reorders after a few Been ratings for a synthetic user.
-- [ ] Ratings persist in the `Store` and are retrievable per place.
-- [ ] Engine tests cover the relative weighting of Been+rating vs Want vs Nope.
+- [x] Marking a place Been triggers a quick rating prompt that can be dismissed/deferred without blocking swiping.
+- [x] A submitted Been rating moves the preference vector more than a Want, which moves it more than a Nope.
+- [x] The deck measurably reorders after a few Been ratings for a synthetic user.
+- [x] Ratings persist in the `Store` and are retrievable per place.
+- [x] Engine tests cover the relative weighting of Been+rating vs Want vs Nope.
 
 ## Blocked by
 

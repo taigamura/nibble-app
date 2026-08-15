@@ -1,4 +1,4 @@
-export { emptyTasteGraph, updateTaste } from './updateTaste';
+export { applyRating, emptyTasteGraph, updateTaste } from './updateTaste';
 export { rankDeck } from './rankDeck';
 export { whySurfaced } from './whySurfaced';
 export { mulberry32, seededShuffle } from './rng';

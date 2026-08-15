@@ -2,8 +2,9 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Card, type CardHandle } from '../components/Card';
+import { RatingPrompt } from '../components/RatingPrompt';
 import type { EnrichmentProvider, PlacesProvider, Store } from '../providers/types';
-import { emptyTasteGraph, rankDeck, updateTaste } from '../taste-engine';
+import { applyRating, emptyTasteGraph, rankDeck, updateTaste } from '../taste-engine';
 import type { Place, SwipeAction, SwipeEvent, TasteGraph } from '../taste-engine';
 
 interface SwipeScreenProps {
@@ -18,6 +19,7 @@ export function SwipeScreen({ placesProvider, store, seed }: SwipeScreenProps) {
   const [candidates, setCandidates] = useState<Place[] | null>(null);
   const [graph, setGraph] = useState<TasteGraph>(emptyTasteGraph());
   const [undoStack, setUndoStack] = useState<SwipeEvent[]>([]);
+  const [pendingRating, setPendingRating] = useState<Place | null>(null);
   const cardRef = useRef<CardHandle>(null);
   // `seed` is meant to be stable for the life of the session (that's what
   // makes the 70/30 blend "injected" rather than reshuffled on every
@@ -57,11 +59,29 @@ export function SwipeScreen({ placesProvider, store, seed }: SwipeScreenProps) {
     setGraph(nextGraph);
     setUndoStack((prev) => [...prev, event]);
     void store.saveGraph(nextGraph);
+    // Been lands immediately at the unrated weight so the swipe loop is
+    // never blocked; the rating prompt below can amend it later, or the
+    // user can skip and leave it as-is.
+    if (action === 'been') {
+      setPendingRating(place);
+    }
   };
 
   const handleButtonPress = (action: SwipeAction) => {
     if (!topPlace) return;
     cardRef.current?.animateOut(action);
+  };
+
+  const handleRate = (rating: number) => {
+    if (!pendingRating) return;
+    const rated = applyRating(graph, pendingRating.id, rating);
+    setGraph(rated);
+    void store.saveGraph(rated);
+    setPendingRating(null);
+  };
+
+  const handleSkipRating = () => {
+    setPendingRating(null);
   };
 
   const handleUndo = () => {
@@ -71,6 +91,7 @@ export function SwipeScreen({ placesProvider, store, seed }: SwipeScreenProps) {
     setGraph(rebuilt);
     setUndoStack(remaining);
     void store.saveGraph(rebuilt);
+    setPendingRating(null);
   };
 
   if (!candidates) {
@@ -129,6 +150,13 @@ export function SwipeScreen({ placesProvider, store, seed }: SwipeScreenProps) {
           <Text style={styles.buttonText}>♥</Text>
         </Pressable>
       </View>
+      {pendingRating && (
+        <RatingPrompt
+          placeName={pendingRating.name}
+          onRate={handleRate}
+          onSkip={handleSkipRating}
+        />
+      )}
     </View>
   );
 }

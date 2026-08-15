@@ -1,4 +1,4 @@
-import { emptyTasteGraph, rankDeck, updateTaste, whySurfaced } from '..';
+import { applyRating, emptyTasteGraph, rankDeck, updateTaste, whySurfaced } from '..';
 import type { Place, SwipeEvent, TasteGraph } from '../types';
 
 function place(overrides: Partial<Place>): Place {
@@ -56,6 +56,58 @@ describe('updateTaste', () => {
 
     expect(graph.vector.ramen).toBe(2);
     expect(graph.actionedPlaceIds).toEqual(['p1', 'p2']);
+  });
+
+  it('a highly-rated Been moves the vector more than a Want, which moves it more than a Nope', () => {
+    const beenRated = updateTaste(
+      emptyTasteGraph(),
+      { ...swipe(place({ id: 'a', category: 'sushi' }), 'been'), rating: 5 }
+    );
+    const want = updateTaste(emptyTasteGraph(), swipe(place({ id: 'b', category: 'sushi' }), 'want'));
+    const nope = updateTaste(emptyTasteGraph(), swipe(place({ id: 'c', category: 'sushi' }), 'nope'));
+
+    expect(beenRated.vector.sushi).toBeGreaterThan(want.vector.sushi);
+    expect(want.vector.sushi).toBeGreaterThan(nope.vector.sushi);
+  });
+
+  it('a poorly-rated Been pushes the vector negative harder than a plain Nope', () => {
+    const beenBadRated = updateTaste(
+      emptyTasteGraph(),
+      { ...swipe(place({ id: 'a', category: 'dive-bar' }), 'been'), rating: 1 }
+    );
+    const nope = updateTaste(emptyTasteGraph(), swipe(place({ id: 'b', category: 'dive-bar' }), 'nope'));
+
+    expect(beenBadRated.vector['dive-bar']).toBeLessThan(nope.vector['dive-bar']);
+  });
+
+  it('records a submitted rating retrievable per place', () => {
+    const p = place({ id: 'p1' });
+    const graph = updateTaste(emptyTasteGraph(), { ...swipe(p, 'been'), rating: 4 });
+
+    expect(graph.ratings.p1).toBe(4);
+  });
+});
+
+describe('applyRating', () => {
+  it('amends a deferred (unrated) Been into a rated one, recomputing the vector', () => {
+    const p = place({ id: 'p1', category: 'ramen' });
+    const deferred = updateTaste(emptyTasteGraph(), swipe(p, 'been'));
+    expect(deferred.ratings.p1).toBeUndefined();
+
+    const rated = applyRating(deferred, 'p1', 5);
+
+    expect(rated.ratings.p1).toBe(5);
+    expect(rated.vector.ramen).toBeGreaterThan(deferred.vector.ramen);
+    expect(rated.actionedPlaceIds).toEqual(deferred.actionedPlaceIds);
+    expect(rated.history).toHaveLength(1);
+  });
+
+  it('does not mutate the input graph', () => {
+    const p = place({ id: 'p1', category: 'ramen' });
+    const deferred = updateTaste(emptyTasteGraph(), swipe(p, 'been'));
+    applyRating(deferred, 'p1', 5);
+
+    expect(deferred.ratings.p1).toBeUndefined();
   });
 });
 
@@ -153,6 +205,27 @@ describe('rankDeck', () => {
     const deck = rankDeck(graph, enrichedPlaces, { seed: 5 });
     expect(deck[0].id).toBe('coffee-1');
     expect(deck[1].id).toBe('coffee-2');
+  });
+
+  it('measurably reorders the deck after a few rated Been swipes for a synthetic user', () => {
+    const shabuPlaces: Place[] = [
+      place({ id: 'shabu-a', category: 'shabu-shabu' }),
+      place({ id: 'shabu-b', category: 'shabu-shabu' }),
+      place({ id: 'ramen-a', category: 'ramen' }),
+    ];
+
+    const before = rankDeck(emptyTasteGraph(), [...places, ...shabuPlaces], { seed: 4 });
+    const beforeFitCount = Math.round(before.length * 0.7);
+    expect(before.slice(0, beforeFitCount).map((p) => p.category)).not.toContain('shabu-shabu');
+
+    let graph = emptyTasteGraph();
+    graph = updateTaste(graph, { ...swipe(place({ id: 'seed-1', category: 'shabu-shabu' }), 'been'), rating: 5 });
+    graph = updateTaste(graph, { ...swipe(place({ id: 'seed-2', category: 'shabu-shabu' }), 'been'), rating: 5 });
+
+    const after = rankDeck(graph, [...places, ...shabuPlaces], { seed: 4 });
+    const afterFitCount = Math.round(after.length * 0.7);
+
+    expect(after.slice(0, afterFitCount).map((p) => p.category).filter((c) => c === 'shabu-shabu')).toHaveLength(3);
   });
 });
 

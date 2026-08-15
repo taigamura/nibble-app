@@ -2,7 +2,9 @@ import type { Place, SwipeAction, SwipeEvent, TasteGraph } from './types';
 
 /**
  * Been is the strongest positive signal (you actually went), Want is a
- * weaker positive signal (you'd like to), Nope is negative.
+ * weaker positive signal (you'd like to), Nope is negative. A rated Been
+ * (see RATING_NEUTRAL/RATING_STEP below) overrides this base weight — the
+ * gold ground-truth signal should dominate photo-driven Want/Nope swipes.
  */
 const ACTION_WEIGHT: Record<SwipeAction, number> = {
   been: 2,
@@ -10,12 +12,28 @@ const ACTION_WEIGHT: Record<SwipeAction, number> = {
   nope: -1,
 };
 
+/**
+ * A submitted Been rating is centered on 3 stars (neutral, ~equivalent to no
+ * signal) and scaled so a great visit (4-5 stars) outweighs even a Want, while
+ * a bad one (1-2 stars) pushes the vector negative harder than a Nope — you
+ * actually went and it was bad, which is stronger evidence than a photo pass.
+ */
+const RATING_NEUTRAL = 3;
+const RATING_STEP = 2;
+
 function signalsFor(place: Place): string[] {
   return [place.category, ...place.tags];
 }
 
+function weightFor(event: SwipeEvent): number {
+  if (event.action === 'been' && event.rating !== undefined) {
+    return (event.rating - RATING_NEUTRAL) * RATING_STEP;
+  }
+  return ACTION_WEIGHT[event.action];
+}
+
 export function emptyTasteGraph(): TasteGraph {
-  return { vector: {}, actionedPlaceIds: [], history: [] };
+  return { vector: {}, actionedPlaceIds: [], history: [], ratings: {} };
 }
 
 /**
@@ -23,7 +41,7 @@ export function emptyTasteGraph(): TasteGraph {
  * (does not mutate the input). Pure — safe to unit test without I/O.
  */
 export function updateTaste(graph: TasteGraph, event: SwipeEvent): TasteGraph {
-  const weight = ACTION_WEIGHT[event.action];
+  const weight = weightFor(event);
   const vector = { ...graph.vector };
 
   for (const signal of signalsFor(event.place)) {
@@ -34,9 +52,27 @@ export function updateTaste(graph: TasteGraph, event: SwipeEvent): TasteGraph {
     ? graph.actionedPlaceIds
     : [...graph.actionedPlaceIds, event.place.id];
 
+  const ratings =
+    event.action === 'been' && event.rating !== undefined
+      ? { ...graph.ratings, [event.place.id]: event.rating }
+      : graph.ratings;
+
   return {
     vector,
     actionedPlaceIds,
     history: [...graph.history, event],
+    ratings,
   };
+}
+
+/**
+ * Amends a place's Been event with a submitted rating (or changes an earlier
+ * rating), then replays the full history from scratch so the vector reflects
+ * the rated weight instead of the original unrated/deferred one.
+ */
+export function applyRating(graph: TasteGraph, placeId: string, rating: number): TasteGraph {
+  const history = graph.history.map((event) =>
+    event.action === 'been' && event.place.id === placeId ? { ...event, rating } : event
+  );
+  return history.reduce(updateTaste, emptyTasteGraph());
 }
