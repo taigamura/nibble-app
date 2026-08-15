@@ -1,4 +1,6 @@
-# Issue #10: Radius / area context control
+# Radius / area context control
+
+> GitHub issue #10 | Labels: ready-for-agent, P2 | https://github.com/taigamura/nibble-app/issues/10
 
 ## Parent
 
@@ -12,10 +14,10 @@ End-to-end: change radius/area → deck re-queries the curated DB for that conte
 
 ## Acceptance criteria
 
-- [ ] The user can widen/narrow the deck radius from the default ~1km.
-- [ ] The user can move the deck's center to a different central-Tokyo area.
-- [ ] The deck re-serves places for the selected context and honors the same fit/wildcard ordering.
-- [ ] Changing context does not corrupt the taste graph (context affects candidate set, not learned taste).
+- [x] The user can widen/narrow the deck radius from the default ~1km.
+- [x] The user can move the deck's center to a different central-Tokyo area.
+- [x] The deck re-serves places for the selected context and honors the same fit/wildcard ordering.
+- [x] Changing context does not corrupt the taste graph (context affects candidate set, not learned taste).
 
 ## Blocked by
 

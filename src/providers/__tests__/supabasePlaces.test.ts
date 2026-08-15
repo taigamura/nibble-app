@@ -72,6 +72,34 @@ describe('SupabasePlacesProvider', () => {
     expect(places.map((p) => p.id)).toEqual(['inside']);
   });
 
+  it('overrides the default center and radius with the given DeckContext (issue #10)', async () => {
+    const rows = [
+      row({ place_id: 'near-shimokita', lat: 35.6614, lng: 139.6684 }),
+      row({ place_id: 'near-default', lat: 35.6596, lng: 139.7006 }),
+    ];
+    const fetchImpl = fakeFetch(rows);
+    const getUserLocation = jest.fn().mockResolvedValue({ lat: 35.6595, lng: 139.7005 });
+
+    const provider = new SupabasePlacesProvider({
+      supabaseUrl: 'https://project.supabase.co',
+      supabaseAnonKey: 'anon-key',
+      googlePlacesApiKey: 'google-key',
+      getUserLocation,
+      radiusMeters: 1000,
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+
+    const places = await provider.getCandidates({
+      center: { lat: 35.6613, lng: 139.6683 },
+      radiusMeters: 500,
+    });
+
+    // The overridden center is used instead of calling getUserLocation, and
+    // only the place near that center survives the (overridden, wider) radius.
+    expect(getUserLocation).not.toHaveBeenCalled();
+    expect(places.map((p) => p.id)).toEqual(['near-shimokita']);
+  });
+
   it('throws when the Supabase query fails', async () => {
     const fetchImpl = jest.fn().mockResolvedValue({ ok: false, status: 500 });
     const provider = new SupabasePlacesProvider({

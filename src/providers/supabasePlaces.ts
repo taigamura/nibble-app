@@ -1,6 +1,6 @@
 import type { Place } from '../taste-engine';
 import { toPlace, type CuratedPlaceRow, type GeoPoint } from './curatedPlace';
-import type { PlacesProvider } from './types';
+import type { DeckContext, PlacesProvider } from './types';
 
 const DEFAULT_RADIUS_METERS = 1000;
 /** Rough meters-per-degree-latitude, used only to size the cheap SQL bounding-box
@@ -32,16 +32,11 @@ export class SupabasePlacesProvider implements PlacesProvider {
     this.fetchImpl = options.fetchImpl ?? fetch;
   }
 
-  async getCandidates(): Promise<Place[]> {
-    const {
-      supabaseUrl,
-      supabaseAnonKey,
-      googlePlacesApiKey,
-      getUserLocation,
-      radiusMeters = DEFAULT_RADIUS_METERS,
-    } = this.options;
+  async getCandidates(context?: DeckContext): Promise<Place[]> {
+    const { supabaseUrl, supabaseAnonKey, googlePlacesApiKey, getUserLocation } = this.options;
 
-    const location = await getUserLocation();
+    const radiusMeters = context?.radiusMeters ?? this.options.radiusMeters ?? DEFAULT_RADIUS_METERS;
+    const location = context?.center ?? (await getUserLocation());
     const degreeSpan = radiusMeters / METERS_PER_DEGREE_LAT;
 
     const url = new URL(`${supabaseUrl}/rest/v1/places`);

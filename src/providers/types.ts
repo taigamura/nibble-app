@@ -6,12 +6,26 @@ export interface GeoPoint {
 }
 
 /**
+ * Where the deck is centered and how far it reaches (issue #10). Both fields
+ * are optional so a caller can override just the radius, just the center, or
+ * neither -- providers fall back to their own default location/radius when a
+ * field is omitted. Only affects the candidate set fetched from
+ * `PlacesProvider`; it is never persisted into `TasteGraph`, so switching
+ * context can never corrupt learned taste.
+ */
+export interface DeckContext {
+  center?: GeoPoint;
+  radiusMeters?: number;
+}
+
+/**
  * Sources the deck of candidate places for a session. The fixture
  * implementation is in-memory; issue #3 adds a real Google Places-backed
- * implementation behind this same interface.
+ * implementation behind this same interface. `context` (issue #10) lets the
+ * caller widen/narrow the radius or re-center the deck on a different area.
  */
 export interface PlacesProvider {
-  getCandidates(): Promise<Place[]>;
+  getCandidates(context?: DeckContext): Promise<Place[]>;
 }
 
 /**

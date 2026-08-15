@@ -3,9 +3,11 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 
 import { Card, type CardHandle } from '../components/Card';
 import { RatingPrompt } from '../components/RatingPrompt';
-import type { EnrichmentProvider, PlacesProvider, Store } from '../providers/types';
+import { DEFAULT_RADIUS_METERS } from '../config/areas';
+import type { DeckContext, EnrichmentProvider, PlacesProvider, Store } from '../providers/types';
 import { applyRating, emptyTasteGraph, rankDeck, updateTaste } from '../taste-engine';
 import type { Place, SwipeAction, SwipeEvent, TasteGraph } from '../taste-engine';
+import { DeckContextControl } from './DeckContextControl';
 import { PlaceDetailModal } from './PlaceDetailModal';
 
 interface SwipeScreenProps {
@@ -22,6 +24,8 @@ export function SwipeScreen({ placesProvider, store, seed }: SwipeScreenProps) {
   const [undoStack, setUndoStack] = useState<SwipeEvent[]>([]);
   const [pendingRating, setPendingRating] = useState<Place | null>(null);
   const [detailPlace, setDetailPlace] = useState<Place | null>(null);
+  const [deckContext, setDeckContext] = useState<DeckContext>({ radiusMeters: DEFAULT_RADIUS_METERS });
+  const [contextControlVisible, setContextControlVisible] = useState(false);
   const cardRef = useRef<CardHandle>(null);
   // `seed` is meant to be stable for the life of the session (that's what
   // makes the 70/30 blend "injected" rather than reshuffled on every
@@ -33,19 +37,32 @@ export function SwipeScreen({ placesProvider, store, seed }: SwipeScreenProps) {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const [places, initialGraph] = await Promise.all([
-        placesProvider.getCandidates(),
-        store.getGraph(),
-      ]);
+      const initialGraph = await store.getGraph();
       if (!cancelled) {
-        setCandidates(places);
         setGraph(initialGraph);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [placesProvider, store]);
+  }, [store]);
+
+  // Re-fetches the candidate set whenever the deck's area/radius context
+  // changes (issue #10). This only swaps which places are queried -- `graph`
+  // (learned taste) is untouched, so switching area/radius can't corrupt it.
+  useEffect(() => {
+    let cancelled = false;
+    setCandidates(null);
+    (async () => {
+      const places = await placesProvider.getCandidates(deckContext);
+      if (!cancelled) {
+        setCandidates(places);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [placesProvider, deckContext]);
 
   const deck = useMemo(() => {
     if (!candidates) return [];
@@ -96,18 +113,29 @@ export function SwipeScreen({ placesProvider, store, seed }: SwipeScreenProps) {
     setPendingRating(null);
   };
 
-  if (!candidates) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator />
-      </View>
-    );
-  }
+  const radiusLabel =
+    deckContext.radiusMeters && deckContext.radiusMeters >= 1000
+      ? `${deckContext.radiusMeters / 1000}km`
+      : `${deckContext.radiusMeters ?? DEFAULT_RADIUS_METERS}m`;
 
   return (
     <View style={styles.container}>
+      <View style={styles.header}>
+        <Pressable
+          accessibilityLabel="Change deck area"
+          style={styles.areaButton}
+          onPress={() => setContextControlVisible(true)}
+        >
+          <Text style={styles.areaButtonText}>📍 {radiusLabel}</Text>
+        </Pressable>
+      </View>
       <View style={styles.deck}>
-        {!topPlace && (
+        {!candidates && (
+          <View style={styles.center}>
+            <ActivityIndicator />
+          </View>
+        )}
+        {candidates && !topPlace && (
           <View style={styles.center}>
             <Text style={styles.emptyText}>That&apos;s everyone nearby for now.</Text>
           </View>
@@ -165,6 +193,12 @@ export function SwipeScreen({ placesProvider, store, seed }: SwipeScreenProps) {
         rating={detailPlace ? graph.ratings[detailPlace.id] : undefined}
         onClose={() => setDetailPlace(null)}
       />
+      <DeckContextControl
+        visible={contextControlVisible}
+        context={deckContext}
+        onChange={setDeckContext}
+        onClose={() => setContextControlVisible(false)}
+      />
     </View>
   );
 }
@@ -173,6 +207,25 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f7f7f7',
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    paddingHorizontal: 16,
+    paddingTop: 8,
+  },
+  areaButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  areaButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#333',
   },
   center: {
     flex: 1,

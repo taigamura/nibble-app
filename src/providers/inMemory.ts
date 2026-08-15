@@ -1,12 +1,15 @@
 import { FIXTURE_PLACES } from '../fixtures/places';
 import { emptyTasteGraph } from '../taste-engine';
 import type { Place, TasteGraph } from '../taste-engine';
-import type { EnrichmentProvider, PlacesProvider, Store } from './types';
+import type { DeckContext, EnrichmentProvider, PlacesProvider, Store } from './types';
 
 export class FixturePlacesProvider implements PlacesProvider {
   constructor(private readonly places: Place[] = FIXTURE_PLACES) {}
 
-  async getCandidates(): Promise<Place[]> {
+  // Fixture data has no real geo spread to filter on, so the area/radius
+  // context (issue #10) is accepted for interface parity but has no effect
+  // here -- it only changes behavior in the real (Supabase-backed) provider.
+  async getCandidates(_context?: DeckContext): Promise<Place[]> {
     return this.places;
   }
 }
