@@ -1,8 +1,9 @@
-import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { Animated, Image, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { Place, SwipeAction } from '../taste-engine';
-import { colors, radius, shadow, spacing, type } from '../theme';
+import { radius, shadow, spacing, type Palette, type TypeRamp } from '../theme';
+import { useTheme } from '../ThemeProvider';
 
 const SWIPE_THRESHOLD = 120;
 const OFF_SCREEN_DISTANCE = 600;
@@ -48,6 +49,8 @@ function targetFor(action: SwipeAction): { x: number; y: number } {
 }
 
 export const Card = forwardRef<CardHandle, CardProps>(({ place, onSwiped, onInfoPress }, ref) => {
+  const { colors, type } = useTheme();
+  const styles = useMemo(() => makeStyles(colors, type), [colors, type]);
   const position = useRef(new Animated.ValueXY()).current;
 
   // Multi-photo gallery: one image is shown at a time (never crammed), and the
@@ -228,7 +231,8 @@ export const Card = forwardRef<CardHandle, CardProps>(({ place, onSwiped, onInfo
 });
 Card.displayName = 'Card';
 
-const styles = StyleSheet.create({
+function makeStyles(colors: Palette, type: TypeRamp) {
+  return StyleSheet.create({
   card: {
     position: 'absolute',
     width: '90%',
@@ -345,4 +349,5 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
     color: colors.secondaryLabel,
   },
-});
+  });
+}

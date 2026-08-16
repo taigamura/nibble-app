@@ -1,5 +1,5 @@
 import { StatusBar } from 'expo-status-bar';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AppShell } from './src/components/AppShell';
@@ -15,9 +15,11 @@ import { SupabaseStore } from './src/providers/supabaseStore';
 import type { AuthProvider, AuthSession, GeoPoint, LocationProvider, PlacesProvider, Store } from './src/providers/types';
 import { CollectionScreen } from './src/screens/CollectionScreen';
 import { OnboardingScreen } from './src/screens/OnboardingScreen';
+import { SettingsScreen } from './src/screens/SettingsScreen';
 import { SignInPromptModal } from './src/screens/SignInPromptModal';
 import { SwipeScreen } from './src/screens/SwipeScreen';
-import { colors, elevate, type } from './src/theme';
+import { ThemeProvider, useTheme } from './src/ThemeProvider';
+import { elevate, spacing, type Palette, type TypeRamp } from './src/theme';
 
 // Used when location permission is denied or unavailable so the deck degrades
 // gracefully instead of blocking on a coordinate.
@@ -78,7 +80,24 @@ function createCloudStore(getSession: () => Promise<AuthSession>): Store | null 
   });
 }
 
+/**
+ * Root: mounts the `ThemeProvider` so everything below (AppShell, screens,
+ * the tab bar, the Settings sheet) can read the active light/dark palette from
+ * `useTheme()`. All the app logic lives in `AppContent`, which must sit inside
+ * the provider to call the hook.
+ */
 export default function App() {
+  return (
+    <ThemeProvider>
+      <AppContent />
+    </ThemeProvider>
+  );
+}
+
+function AppContent() {
+  const { colors, type } = useTheme();
+  const styles = useMemo(() => makeStyles(colors, type), [colors, type]);
+
   const locationProvider = useRef(new ExpoLocationProvider()).current;
   const getUserLocation = useRef(createUserLocationResolver(locationProvider)).current;
   const placesProvider = useRef(createPlacesProvider(getUserLocation)).current;
@@ -103,6 +122,7 @@ export default function App() {
   const [hasPromptedThisRun, setHasPromptedThisRun] = useState(false);
   const [signingIn, setSigningIn] = useState(false);
   const [signInError, setSignInError] = useState<string | null>(null);
+  const [settingsVisible, setSettingsVisible] = useState(false);
 
   // Restores the persisted onboarding flag on cold start so a returning user
   // lands straight on the deck instead of re-running the "been" grid.
@@ -165,6 +185,37 @@ export default function App() {
     }
   };
 
+  // Clears the local auth session but keeps local data intact (unlike Reset).
+  // The store falls back to `localStore` once `session` is null.
+  const handleSignOut = async () => {
+    if (authProvider) await authProvider.signOut();
+    sessionRef.current = null;
+    setSession(null);
+    setSettingsVisible(false);
+  };
+
+  // Destructive: wipe device-local data and sign out, then drop the user back
+  // into onboarding. Cloud data is untouched (signing back in restores it),
+  // and the appearance preference is deliberately preserved.
+  const handleResetAllData = async () => {
+    await localStore.clear();
+    await onboardingState.clear();
+    if (authProvider) await authProvider.signOut();
+    sessionRef.current = null;
+    setSession(null);
+    setHasPromptedThisRun(false);
+    setSettingsVisible(false);
+    setActiveTab('swipe');
+    setOnboarded(false);
+  };
+
+  // Non-destructive: replay the intro grid without touching taste data.
+  const handleReplayOnboarding = async () => {
+    await onboardingState.clear();
+    setSettingsVisible(false);
+    setOnboarded(false);
+  };
+
   const handleOnboardingComplete = () => {
     setOnboarded(true);
     // Fire-and-forget: the in-memory flag already advances the UI; persisting
@@ -198,6 +249,18 @@ export default function App() {
                 onRequestSignIn={() => setSignInPromptVisible(true)}
               />
             )}
+            {/* Floating gear -- reachable from both screens. Kept as an overlay
+                (rather than a header on each screen) so the full-bleed Discover
+                deck doesn't lose vertical space to a chrome bar. */}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Open settings"
+              hitSlop={8}
+              style={styles.gear}
+              onPress={() => setSettingsVisible(true)}
+            >
+              <Text style={styles.gearIcon}>⚙️</Text>
+            </Pressable>
           </View>
           <View style={styles.tabBar}>
             <Pressable
@@ -244,42 +307,72 @@ export default function App() {
           setSignInError(null);
         }}
       />
+      <SettingsScreen
+        visible={settingsVisible}
+        onClose={() => setSettingsVisible(false)}
+        locationProvider={locationProvider}
+        canSignIn={authProvider !== null}
+        signedIn={session !== null}
+        onSignIn={() => {
+          setSettingsVisible(false);
+          void handleSignIn();
+        }}
+        onSignOut={handleSignOut}
+        onReplayOnboarding={handleReplayOnboarding}
+        onResetAllData={handleResetAllData}
+      />
       <StatusBar style="auto" />
     </AppShell>
   );
 }
 
-const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-  },
-  tabBar: {
-    flexDirection: 'row',
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.separator,
-    backgroundColor: colors.background,
-    paddingTop: 8,
-    paddingBottom: 6,
-    // Upward shadow (tab bar sits at the bottom edge), platform-aware so
-    // react-native-web doesn't warn on the deprecated shadow* props.
-    ...elevate(-1, 6, 0.08, 2),
-  },
-  tabBarButton: {
-    flex: 1,
-    alignItems: 'center',
-    gap: 2,
-  },
-  tabBarIcon: {
-    fontSize: 22,
-    opacity: 0.35,
-  },
-  tabBarLabel: {
-    ...type.caption2,
-    fontWeight: '600',
-    color: colors.secondaryLabel,
-  },
-  tabBarActive: {
-    opacity: 1,
-    color: colors.tint,
-  },
-});
+function makeStyles(colors: Palette, type: TypeRamp) {
+  return StyleSheet.create({
+    screen: {
+      flex: 1,
+    },
+    gear: {
+      position: 'absolute',
+      top: spacing.sm,
+      right: spacing.md,
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.fill,
+    },
+    gearIcon: {
+      fontSize: 18,
+    },
+    tabBar: {
+      flexDirection: 'row',
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: colors.separator,
+      backgroundColor: colors.background,
+      paddingTop: 8,
+      paddingBottom: 6,
+      // Upward shadow (tab bar sits at the bottom edge), platform-aware so
+      // react-native-web doesn't warn on the deprecated shadow* props.
+      ...elevate(-1, 6, 0.08, 2),
+    },
+    tabBarButton: {
+      flex: 1,
+      alignItems: 'center',
+      gap: 2,
+    },
+    tabBarIcon: {
+      fontSize: 22,
+      opacity: 0.35,
+    },
+    tabBarLabel: {
+      ...type.caption2,
+      fontWeight: '600',
+      color: colors.secondaryLabel,
+    },
+    tabBarActive: {
+      opacity: 1,
+      color: colors.tint,
+    },
+  });
+}

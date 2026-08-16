@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import {
@@ -11,6 +11,8 @@ import type { BeenEntry } from '../collection/selectors';
 import type { Store } from '../providers/types';
 import { applyReview, markBeen } from '../taste-engine';
 import type { Place, TasteGraph } from '../taste-engine';
+import { useTheme } from '../ThemeProvider';
+import { type Palette, type TypeRamp } from '../theme';
 import { PlaceDetailModal } from './PlaceDetailModal';
 import { TonightSheet } from './TonightSheet';
 
@@ -31,6 +33,8 @@ const TABS: { key: Tab; label: string }[] = [
 ];
 
 export function CollectionScreen({ store, canSignIn, signedIn, onRequestSignIn }: CollectionScreenProps) {
+  const { colors, type } = useTheme();
+  const styles = useMemo(() => makeStyles(colors, type), [colors, type]);
   const [graph, setGraph] = useState<TasteGraph | null>(null);
   const [tab, setTab] = useState<Tab>('want');
   const [selected, setSelected] = useState<{
@@ -174,6 +178,8 @@ interface PlaceListProps {
 }
 
 function PlaceList({ data, emptyText, onSelect, onMarkBeen }: PlaceListProps) {
+  const { colors, type } = useTheme();
+  const styles = useMemo(() => makeStyles(colors, type), [colors, type]);
   if (data.length === 0) {
     return (
       <View style={styles.center}>
@@ -218,128 +224,131 @@ function PlaceList({ data, emptyText, onSelect, onMarkBeen }: PlaceListProps) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f7f7f7',
-  },
-  center: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-  },
-  emptyText: {
-    fontSize: 14,
-    color: '#888',
-    textAlign: 'center',
-  },
-  syncBanner: {
-    marginHorizontal: 16,
-    marginTop: 12,
-    paddingVertical: 10,
-    borderRadius: 10,
-    backgroundColor: '#111',
-    alignItems: 'center',
-  },
-  syncBannerText: {
-    color: '#fff',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  tabs: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    gap: 8,
-  },
-  tab: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 16,
-    backgroundColor: '#fff',
-  },
-  tabActive: {
-    backgroundColor: '#111',
-  },
-  tabText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#666',
-  },
-  tabTextActive: {
-    color: '#fff',
-  },
-  tonightButton: {
-    marginHorizontal: 16,
-    marginTop: 12,
-    paddingVertical: 12,
-    borderRadius: 12,
-    backgroundColor: '#007AFF',
-    alignItems: 'center',
-  },
-  tonightButtonText: {
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  stats: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    gap: 8,
-  },
-  statChip: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  statText: {
-    fontSize: 12,
-    color: '#444',
-  },
-  list: {
-    padding: 16,
-  },
-  row: {
-    flexDirection: 'row',
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    marginBottom: 10,
-    overflow: 'hidden',
-  },
-  rowImage: {
-    width: 72,
-    height: 72,
-    backgroundColor: '#e5e5e5',
-  },
-  rowBody: {
-    flex: 1,
-    padding: 10,
-    justifyContent: 'center',
-  },
-  rowName: {
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  rowMeta: {
-    marginTop: 3,
-    fontSize: 12,
-    color: '#666',
-  },
-  iWentRowButton: {
-    alignSelf: 'center',
-    marginRight: 12,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 14,
-    backgroundColor: '#34C759',
-  },
-  iWentRowButtonText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#fff',
-  },
-});
+function makeStyles(colors: Palette, type: TypeRamp) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.groupedBackground,
+    },
+    center: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 24,
+    },
+    emptyText: {
+      fontSize: 14,
+      color: colors.secondaryLabel,
+      textAlign: 'center',
+    },
+    syncBanner: {
+      marginHorizontal: 16,
+      marginTop: 12,
+      paddingVertical: 10,
+      borderRadius: 10,
+      backgroundColor: colors.tint,
+      alignItems: 'center',
+    },
+    syncBannerText: {
+      color: colors.labelOnColor,
+      fontSize: 13,
+      fontWeight: '700',
+    },
+    tabs: {
+      flexDirection: 'row',
+      paddingHorizontal: 16,
+      paddingTop: 12,
+      gap: 8,
+    },
+    tab: {
+      paddingVertical: 8,
+      paddingHorizontal: 16,
+      borderRadius: 16,
+      backgroundColor: colors.background,
+    },
+    tabActive: {
+      backgroundColor: colors.tint,
+    },
+    tabText: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: colors.secondaryLabel,
+    },
+    tabTextActive: {
+      color: colors.labelOnColor,
+    },
+    tonightButton: {
+      marginHorizontal: 16,
+      marginTop: 12,
+      paddingVertical: 12,
+      borderRadius: 12,
+      backgroundColor: colors.tint,
+      alignItems: 'center',
+    },
+    tonightButtonText: {
+      color: colors.labelOnColor,
+      fontSize: 15,
+      fontWeight: '700',
+    },
+    stats: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      paddingHorizontal: 16,
+      paddingTop: 12,
+      gap: 8,
+    },
+    statChip: {
+      backgroundColor: colors.background,
+      borderRadius: 12,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+    },
+    statText: {
+      fontSize: 12,
+      color: colors.secondaryLabel,
+    },
+    list: {
+      padding: 16,
+    },
+    row: {
+      flexDirection: 'row',
+      backgroundColor: colors.background,
+      borderRadius: 12,
+      marginBottom: 10,
+      overflow: 'hidden',
+    },
+    rowImage: {
+      width: 72,
+      height: 72,
+      backgroundColor: colors.fill,
+    },
+    rowBody: {
+      flex: 1,
+      padding: 10,
+      justifyContent: 'center',
+    },
+    rowName: {
+      fontSize: 15,
+      fontWeight: '700',
+      color: colors.label,
+    },
+    rowMeta: {
+      marginTop: 3,
+      fontSize: 12,
+      color: colors.secondaryLabel,
+    },
+    iWentRowButton: {
+      alignSelf: 'center',
+      marginRight: 12,
+      paddingVertical: 6,
+      paddingHorizontal: 12,
+      borderRadius: 14,
+      backgroundColor: colors.been,
+    },
+    iWentRowButtonText: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.labelOnColor,
+    },
+  });
+}

@@ -6,6 +6,7 @@ import { SwipeScreen } from '../SwipeScreen';
 import { emptyTasteGraph } from '../../taste-engine';
 import type { EnrichmentProvider, PlacesProvider, Store } from '../../providers/types';
 import type { Place } from '../../taste-engine';
+import { ThemeProvider } from '../../ThemeProvider';
 
 const places: Place[] = [
   {
@@ -37,12 +38,14 @@ async function renderSwipe(): Promise<ReactTestRenderer> {
   let renderer!: ReactTestRenderer;
   await act(async () => {
     renderer = TestRenderer.create(
-      <SwipeScreen
-        placesProvider={makePlacesProvider()}
-        enrichmentProvider={makeEnrichment()}
-        store={makeStore()}
-        seed={1}
-      />
+      <ThemeProvider>
+        <SwipeScreen
+          placesProvider={makePlacesProvider()}
+          enrichmentProvider={makeEnrichment()}
+          store={makeStore()}
+          seed={1}
+        />
+      </ThemeProvider>
     );
   });
   await act(async () => {});
@@ -61,13 +64,15 @@ describe('SwipeScreen empty-deck decision card', () => {
     let renderer!: ReactTestRenderer;
     await act(async () => {
       renderer = TestRenderer.create(
-        <SwipeScreen
-          placesProvider={{ getCandidates: async () => [] }}
-          enrichmentProvider={makeEnrichment()}
-          store={makeStore()}
-          seed={1}
-          onGoToWant={() => {}}
-        />
+        <ThemeProvider>
+          <SwipeScreen
+            placesProvider={{ getCandidates: async () => [] }}
+            enrichmentProvider={makeEnrichment()}
+            store={makeStore()}
+            seed={1}
+            onGoToWant={() => {}}
+          />
+        </ThemeProvider>
       );
     });
     await act(async () => {});
@@ -82,12 +87,14 @@ describe('SwipeScreen empty-deck decision card', () => {
     let renderer!: ReactTestRenderer;
     await act(async () => {
       renderer = TestRenderer.create(
-        <SwipeScreen
-          placesProvider={{ getCandidates: async () => [] }}
-          enrichmentProvider={makeEnrichment()}
-          store={makeStore()}
-          seed={1}
-        />
+        <ThemeProvider>
+          <SwipeScreen
+            placesProvider={{ getCandidates: async () => [] }}
+            enrichmentProvider={makeEnrichment()}
+            store={makeStore()}
+            seed={1}
+          />
+        </ThemeProvider>
       );
     });
     await act(async () => {});

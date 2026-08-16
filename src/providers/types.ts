@@ -36,7 +36,11 @@ export interface PlacesProvider {
  */
 export interface LocationProvider {
   getCurrentLocation(): Promise<GeoPoint | null>;
+  /** Reads the current foreground-location permission WITHOUT prompting. */
+  getPermissionStatus(): Promise<LocationPermissionStatus>;
 }
+
+export type LocationPermissionStatus = 'granted' | 'denied' | 'undetermined';
 
 /**
  * Produces taste tags for a place (LLM-derived vibe/flavor tags in the real
@@ -73,4 +77,6 @@ export interface AuthSession {
 export interface AuthProvider {
   getSession(): Promise<AuthSession | null>;
   signInWithApple(): Promise<AuthSession>;
+  /** Clears the current session locally (in-memory + persisted). Does not revoke the token server-side. */
+  signOut(): Promise<void>;
 }

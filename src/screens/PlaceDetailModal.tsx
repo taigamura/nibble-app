@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Image, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import type { Place } from '../taste-engine';
-import { colors, radius, spacing, type } from '../theme';
+import { radius, spacing, type Palette, type TypeRamp } from '../theme';
+import { useTheme } from '../ThemeProvider';
 import { buildMapUrl, buildWriteReviewUrl } from './googleMapsLinks';
 
 interface PlaceDetailModalProps {
@@ -39,6 +40,8 @@ export function PlaceDetailModal({
   onMarkBeen,
   onClose,
 }: PlaceDetailModalProps) {
+  const { colors, type } = useTheme();
+  const styles = useMemo(() => makeStyles(colors, type), [colors, type]);
   const [draftRating, setDraftRating] = useState<number>(rating ?? 0);
   const [draftTags, setDraftTags] = useState<string[]>(reviewTags ?? []);
 
@@ -173,7 +176,8 @@ export function PlaceDetailModal({
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(colors: Palette, type: TypeRamp) {
+  return StyleSheet.create({
   backdrop: {
     flex: 1,
     backgroundColor: colors.scrim,
@@ -331,4 +335,5 @@ const styles = StyleSheet.create({
     ...type.headline,
     color: colors.label,
   },
-});
+  });
+}

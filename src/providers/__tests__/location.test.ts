@@ -5,10 +5,12 @@ import { ExpoLocationProvider } from '../location';
 jest.mock('expo-location', () => ({
   requestForegroundPermissionsAsync: jest.fn(),
   getCurrentPositionAsync: jest.fn(),
+  getForegroundPermissionsAsync: jest.fn(),
 }));
 
 const mockedRequestPermissions = Location.requestForegroundPermissionsAsync as jest.Mock;
 const mockedGetPosition = Location.getCurrentPositionAsync as jest.Mock;
+const mockedGetPermissions = Location.getForegroundPermissionsAsync as jest.Mock;
 
 describe('ExpoLocationProvider', () => {
   afterEach(() => {
@@ -40,5 +42,38 @@ describe('ExpoLocationProvider', () => {
     const location = await new ExpoLocationProvider().getCurrentLocation();
 
     expect(location).toBeNull();
+  });
+
+  it('getPermissionStatus resolves granted without prompting', async () => {
+    mockedGetPermissions.mockResolvedValue({ status: 'granted' });
+
+    const status = await new ExpoLocationProvider().getPermissionStatus();
+
+    expect(status).toBe('granted');
+    expect(mockedRequestPermissions).not.toHaveBeenCalled();
+  });
+
+  it('getPermissionStatus resolves undetermined', async () => {
+    mockedGetPermissions.mockResolvedValue({ status: 'undetermined' });
+
+    const status = await new ExpoLocationProvider().getPermissionStatus();
+
+    expect(status).toBe('undetermined');
+  });
+
+  it('getPermissionStatus resolves denied', async () => {
+    mockedGetPermissions.mockResolvedValue({ status: 'denied' });
+
+    const status = await new ExpoLocationProvider().getPermissionStatus();
+
+    expect(status).toBe('denied');
+  });
+
+  it('getPermissionStatus degrades gracefully to denied when the read throws', async () => {
+    mockedGetPermissions.mockRejectedValue(new Error('unavailable'));
+
+    const status = await new ExpoLocationProvider().getPermissionStatus();
+
+    expect(status).toBe('denied');
   });
 });

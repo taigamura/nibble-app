@@ -1,5 +1,8 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+
+import { useTheme } from '../ThemeProvider';
+import { type Palette, type TypeRamp } from '../theme';
 
 interface SignInPromptModalProps {
   visible: boolean;
@@ -16,6 +19,8 @@ interface SignInPromptModalProps {
  * graph and history stay fully usable locally either way.
  */
 export function SignInPromptModal({ visible, signingIn, error, onSignIn, onDismiss }: SignInPromptModalProps) {
+  const { colors, type } = useTheme();
+  const styles = useMemo(() => makeStyles(colors, type), [colors, type]);
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onDismiss}>
       <View style={styles.backdrop}>
@@ -32,7 +37,11 @@ export function SignInPromptModal({ visible, signingIn, error, onSignIn, onDismi
             disabled={signingIn}
             onPress={onSignIn}
           >
-            {signingIn ? <ActivityIndicator color="#fff" /> : <Text style={styles.signInText}>Sign in with Apple</Text>}
+            {signingIn ? (
+              <ActivityIndicator color={colors.labelOnColor} />
+            ) : (
+              <Text style={styles.signInText}>Sign in with Apple</Text>
+            )}
           </Pressable>
           <Pressable accessibilityLabel="Not now" style={styles.dismiss} onPress={onDismiss} disabled={signingIn}>
             <Text style={styles.dismissText}>Not now</Text>
@@ -43,53 +52,56 @@ export function SignInPromptModal({ visible, signingIn, error, onSignIn, onDismi
   );
 }
 
-const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'flex-end',
-  },
-  sheet: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 24,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: '700',
-  },
-  body: {
-    marginTop: 8,
-    fontSize: 14,
-    color: '#666',
-    lineHeight: 20,
-  },
-  error: {
-    marginTop: 12,
-    fontSize: 13,
-    color: '#e74c3c',
-  },
-  signIn: {
-    marginTop: 20,
-    backgroundColor: '#111',
-    borderRadius: 10,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  signInText: {
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  dismiss: {
-    marginTop: 10,
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  dismissText: {
-    color: '#666',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-});
+function makeStyles(colors: Palette, type: TypeRamp) {
+  return StyleSheet.create({
+    backdrop: {
+      flex: 1,
+      backgroundColor: colors.scrim,
+      justifyContent: 'flex-end',
+    },
+    sheet: {
+      backgroundColor: colors.background,
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      padding: 24,
+    },
+    title: {
+      fontSize: 20,
+      fontWeight: '700',
+      color: colors.label,
+    },
+    body: {
+      marginTop: 8,
+      fontSize: 14,
+      color: colors.secondaryLabel,
+      lineHeight: 20,
+    },
+    error: {
+      marginTop: 12,
+      fontSize: 13,
+      color: colors.nope,
+    },
+    signIn: {
+      marginTop: 20,
+      backgroundColor: colors.tint,
+      borderRadius: 10,
+      paddingVertical: 14,
+      alignItems: 'center',
+    },
+    signInText: {
+      color: colors.labelOnColor,
+      fontSize: 15,
+      fontWeight: '700',
+    },
+    dismiss: {
+      marginTop: 10,
+      paddingVertical: 12,
+      alignItems: 'center',
+    },
+    dismissText: {
+      color: colors.secondaryLabel,
+      fontSize: 14,
+      fontWeight: '600',
+    },
+  });
+}

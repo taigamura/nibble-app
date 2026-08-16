@@ -6,6 +6,7 @@ import { CollectionScreen } from '../CollectionScreen';
 import { emptyTasteGraph, updateTaste } from '../../taste-engine';
 import type { Place, TasteGraph } from '../../taste-engine';
 import type { Store } from '../../providers/types';
+import { ThemeProvider } from '../../ThemeProvider';
 
 const WANT_PLACE: Place = {
   id: 'w1',
@@ -45,7 +46,11 @@ describe('CollectionScreen — I went (markBeen)', () => {
     const store = makeStore(graphWithWant());
     let renderer!: ReactTestRenderer;
     await act(async () => {
-      renderer = TestRenderer.create(<CollectionScreen store={store} />);
+      renderer = TestRenderer.create(
+        <ThemeProvider>
+          <CollectionScreen store={store} />
+        </ThemeProvider>
+      );
     });
     await act(async () => {});
 

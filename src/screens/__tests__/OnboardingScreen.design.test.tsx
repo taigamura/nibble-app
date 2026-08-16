@@ -6,6 +6,7 @@ import { OnboardingScreen } from '../OnboardingScreen';
 import { emptyTasteGraph } from '../../taste-engine';
 import type { Place } from '../../taste-engine';
 import type { PlacesProvider, Store } from '../../providers/types';
+import { ThemeProvider } from '../../ThemeProvider';
 
 const places: Place[] = [
   {
@@ -45,12 +46,14 @@ async function renderOnboarding(): Promise<ReactTestRenderer> {
   let renderer!: ReactTestRenderer;
   await act(async () => {
     renderer = TestRenderer.create(
-      <OnboardingScreen
-        placesProvider={makePlacesProvider()}
-        store={makeStore()}
-        requestLocation={async () => undefined}
-        onComplete={() => {}}
-      />
+      <ThemeProvider>
+        <OnboardingScreen
+          placesProvider={makePlacesProvider()}
+          store={makeStore()}
+          requestLocation={async () => undefined}
+          onComplete={() => {}}
+        />
+      </ThemeProvider>
     );
   });
   // Flush the async getCandidates() effect.
