@@ -4,7 +4,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import { Card, type CardHandle } from '../components/Card';
 import { RatingPrompt } from '../components/RatingPrompt';
 import { DEFAULT_RADIUS_METERS, RADIUS_OPTIONS_METERS } from '../config/areas';
-import type { DeckContext, EnrichmentProvider, PlacesProvider, Store } from '../providers/types';
+import type { DeckContext, EnrichmentProvider, GeoPoint, PlacesProvider, Store } from '../providers/types';
 import {
   applyRating,
   DEFAULT_NOPE_COOLDOWN_MS,
@@ -26,9 +26,23 @@ interface SwipeScreenProps {
   seed?: number;
   /** Navigates to the Want tab (Collection screen). Hidden when omitted. */
   onGoToWant?: () => void;
+  /** The user's saved Home snapshot (a selectable chip in the area picker), or `null`. */
+  homePoint?: GeoPoint | null;
+  /** Captures the device's current position as Home. */
+  onSetHome?: () => void;
+  /** Un-sets Home. */
+  onClearHome?: () => void;
 }
 
-export function SwipeScreen({ placesProvider, store, seed, onGoToWant }: SwipeScreenProps) {
+export function SwipeScreen({
+  placesProvider,
+  store,
+  seed,
+  onGoToWant,
+  homePoint,
+  onSetHome,
+  onClearHome,
+}: SwipeScreenProps) {
   const { colors, type } = useTheme();
   const styles = useMemo(() => makeStyles(colors, type), [colors, type]);
   const [candidates, setCandidates] = useState<Place[] | null>(null);
@@ -298,6 +312,9 @@ export function SwipeScreen({ placesProvider, store, seed, onGoToWant }: SwipeSc
       <DeckContextControl
         visible={contextControlVisible}
         context={deckContext}
+        homePoint={homePoint}
+        onSetHome={onSetHome}
+        onClearHome={onClearHome}
         onChange={setDeckContext}
         onClose={() => setContextControlVisible(false)}
       />
