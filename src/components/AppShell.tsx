@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { Platform, SafeAreaView, StyleSheet, View } from 'react-native';
 
-import { shadow, type Palette } from '../theme';
+import { elevate, type Palette } from '../theme';
 import { useTheme } from '../ThemeProvider';
 
 /**
@@ -48,7 +48,10 @@ function makeStyles(colors: Palette) {
       // Clips the tab bar and any sheets to the rounded device edge.
       overflow: 'hidden',
       backgroundColor: colors.groupedBackground,
-      ...shadow.lg,
+      // A bit deeper than shadow.lg so the phone reads as floating on the
+      // desk backdrop rather than merely resting on it (Apple: bigger
+      // surfaces read thicker).
+      ...elevate(20, 40, 0.22, 14),
     },
     appSurface: {
       flex: 1,

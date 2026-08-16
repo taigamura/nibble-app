@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 
+import { haptics } from '../haptics';
 import { useTheme } from '../ThemeProvider';
 import type { LocationPermissionStatus, LocationProvider } from '../providers/types';
 import {
@@ -91,6 +92,7 @@ export function SettingsScreen({
   }, [visible, locationProvider]);
 
   const handleEnableLocation = async () => {
+    haptics.selection();
     if (locationStatus === 'undetermined') {
       // First ask: getCurrentLocation triggers the OS prompt as a side effect.
       await locationProvider.getCurrentLocation();
@@ -103,6 +105,7 @@ export function SettingsScreen({
   };
 
   const handleReset = () => {
+    haptics.warning();
     Alert.alert(
       'Reset all data?',
       'This clears your taste history and signs you out on this device. Your appearance setting is kept, and any data synced to your account stays safe.',
@@ -121,7 +124,13 @@ export function SettingsScreen({
       <View style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Settings</Text>
-          <Pressable accessibilityRole="button" accessibilityLabel="Close settings" hitSlop={8} onPress={onClose}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Close settings"
+            hitSlop={8}
+            style={({ pressed }) => pressed && styles.pressedText}
+            onPress={onClose}
+          >
             <Text style={styles.headerDone}>Done</Text>
           </Pressable>
         </View>
@@ -139,8 +148,15 @@ export function SettingsScreen({
                     accessibilityRole="radio"
                     accessibilityState={{ selected }}
                     accessibilityLabel={`${opt.label} appearance`}
-                    style={[styles.segmentButton, selected && styles.segmentButtonActive]}
-                    onPress={() => setAppearance(opt.value)}
+                    style={({ pressed }) => [
+                      styles.segmentButton,
+                      selected && styles.segmentButtonActive,
+                      pressed && styles.segmentPressed,
+                    ]}
+                    onPress={() => {
+                      haptics.selection();
+                      setAppearance(opt.value);
+                    }}
                   >
                     <Text style={[styles.segmentLabel, selected && styles.segmentLabelActive]}>
                       {opt.label}
@@ -166,8 +182,11 @@ export function SettingsScreen({
                     <Pressable
                       accessibilityRole="button"
                       accessibilityLabel="Sign out"
-                      style={styles.row}
-                      onPress={onSignOut}
+                      style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+                      onPress={() => {
+                        haptics.selection();
+                        onSignOut();
+                      }}
                     >
                       <Text style={styles.rowAction}>Sign out</Text>
                     </Pressable>
@@ -176,8 +195,11 @@ export function SettingsScreen({
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel="Sign in with Apple"
-                    style={styles.row}
-                    onPress={onSignIn}
+                    style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+                    onPress={() => {
+                      haptics.selection();
+                      onSignIn();
+                    }}
                   >
                     <Text style={styles.rowActionTint}>Sign in with Apple</Text>
                   </Pressable>
@@ -202,7 +224,7 @@ export function SettingsScreen({
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel="Enable location"
-                  style={styles.row}
+                  style={({ pressed }) => [styles.row, pressed && styles.pressed]}
                   onPress={handleEnableLocation}
                 >
                   <Text style={styles.rowActionTint}>
@@ -222,8 +244,11 @@ export function SettingsScreen({
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Replay intro"
-              style={styles.row}
-              onPress={onReplayOnboarding}
+              style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+              onPress={() => {
+                haptics.selection();
+                onReplayOnboarding();
+              }}
             >
               <Text style={styles.rowAction}>Replay intro</Text>
             </Pressable>
@@ -231,7 +256,7 @@ export function SettingsScreen({
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Reset all data"
-              style={styles.row}
+              style={({ pressed }) => [styles.row, pressed && styles.pressed]}
               onPress={handleReset}
             >
               <Text style={styles.rowActionDestructive}>Reset all data</Text>
@@ -294,6 +319,12 @@ function makeStyles(colors: Palette, type: TypeRamp) {
       paddingVertical: spacing.md,
       minHeight: 44,
     },
+    pressed: {
+      backgroundColor: colors.fill,
+    },
+    pressedText: {
+      opacity: 0.55,
+    },
     divider: {
       height: StyleSheet.hairlineWidth,
       backgroundColor: colors.separator,
@@ -336,6 +367,9 @@ function makeStyles(colors: Palette, type: TypeRamp) {
     },
     segmentButtonActive: {
       backgroundColor: colors.tint,
+    },
+    segmentPressed: {
+      opacity: 0.7,
     },
     segmentLabel: {
       ...type.body,

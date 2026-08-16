@@ -1,6 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Image, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, Image, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { Icon } from '../components/Icon';
+import { formatCategory } from '../format';
+import { haptics } from '../haptics';
+import { spring, useReducedMotion } from '../motion';
 import type { Place } from '../taste-engine';
 import { radius, spacing, type Palette, type TypeRamp } from '../theme';
 import { useTheme } from '../ThemeProvider';
@@ -31,6 +35,85 @@ interface PlaceDetailModalProps {
 
 const STARS = [1, 2, 3, 4, 5];
 
+/**
+ * A Pressable that springs to a slight scale-down while held, for tactile
+ * feedback (Apple: respond on press, continuously). `containerStyle` carries
+ * layout (e.g. flex:1) onto the animated wrapper so wrapping never collapses a
+ * flex row.
+ */
+function PressScale({
+  children,
+  style,
+  containerStyle,
+  reducedMotion,
+  onPress,
+  ...rest
+}: React.ComponentProps<typeof Pressable> & {
+  reducedMotion: boolean;
+  containerStyle?: React.ComponentProps<typeof Animated.View>['style'];
+}) {
+  const scale = useRef(new Animated.Value(1)).current;
+
+  const pressIn = () => {
+    if (reducedMotion) return;
+    Animated.spring(scale, { toValue: 0.95, ...spring.snappy, useNativeDriver: true }).start();
+  };
+  const pressOut = () => {
+    if (reducedMotion) return;
+    Animated.spring(scale, { toValue: 1, ...spring.snappy, useNativeDriver: true }).start();
+  };
+
+  return (
+    <Animated.View style={[containerStyle, { transform: [{ scale }] }]}>
+      <Pressable {...rest} style={style} onPress={onPress} onPressIn={pressIn} onPressOut={pressOut}>
+        {children}
+      </Pressable>
+    </Animated.View>
+  );
+}
+
+interface ReviewStarProps {
+  n: number;
+  filled: boolean;
+  colors: Palette;
+  styles: ReturnType<typeof makeStyles>;
+  reducedMotion: boolean;
+  onPress: (n: number) => void;
+}
+
+/** One review star: filled/outline by draft rating, with a pop + haptic on tap. */
+function ReviewStar({ n, filled, colors, styles, reducedMotion, onPress }: ReviewStarProps) {
+  const scale = useRef(new Animated.Value(1)).current;
+
+  const handlePress = () => {
+    haptics.selection();
+    if (!reducedMotion) {
+      Animated.sequence([
+        Animated.spring(scale, { ...spring.bouncy, toValue: 1.25, useNativeDriver: true }),
+        Animated.spring(scale, { ...spring.bouncy, toValue: 1, useNativeDriver: true }),
+      ]).start();
+    }
+    onPress(n);
+  };
+
+  return (
+    <Pressable
+      accessibilityLabel={`Rate ${n} star${n === 1 ? '' : 's'}`}
+      accessibilityState={{ selected: filled }}
+      style={styles.starButton}
+      onPress={handlePress}
+    >
+      <Animated.View style={{ transform: [{ scale }] }}>
+        <Icon
+          name={filled ? 'star' : 'star-outline'}
+          size={34}
+          color={filled ? colors.star : colors.tertiaryLabel}
+        />
+      </Animated.View>
+    </Pressable>
+  );
+}
+
 /** Opening any collection item (Want/Been list row or map pin) shows this. */
 export function PlaceDetailModal({
   place,
@@ -42,6 +125,7 @@ export function PlaceDetailModal({
 }: PlaceDetailModalProps) {
   const { colors, type } = useTheme();
   const styles = useMemo(() => makeStyles(colors, type), [colors, type]);
+  const reducedMotion = useReducedMotion();
   const [draftRating, setDraftRating] = useState<number>(rating ?? 0);
   const [draftTags, setDraftTags] = useState<string[]>(reviewTags ?? []);
 
@@ -53,13 +137,21 @@ export function PlaceDetailModal({
   }, [place?.id, rating, reviewTags]);
 
   const toggleTag = (tag: string) => {
+    haptics.selection();
     setDraftTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]));
   };
 
   const submitReview = () => {
     if (!place || draftRating === 0) return;
+    haptics.success();
     onSubmitReview?.(place.id, draftRating, draftTags);
     onClose();
+  };
+
+  const handleMarkBeen = () => {
+    if (!place) return;
+    haptics.success();
+    onMarkBeen?.(place.id);
   };
 
   return (
@@ -72,7 +164,7 @@ export function PlaceDetailModal({
               <View style={styles.body}>
                 <Text style={styles.name}>{place.name}</Text>
                 <Text style={styles.meta}>
-                  {place.category} · {place.priceBand} · ★{place.rating.toFixed(1)} ·{' '}
+                  {formatCategory(place.category)} · {place.priceBand} · ★{place.rating.toFixed(1)} ·{' '}
                   {Math.round(place.distanceMeters)}m
                 </Text>
                 {place.tags.length > 0 && (
@@ -93,15 +185,15 @@ export function PlaceDetailModal({
                     </Text>
                     <View style={styles.stars}>
                       {STARS.map((n) => (
-                        <Pressable
+                        <ReviewStar
                           key={n}
-                          accessibilityLabel={`Rate ${n} star${n === 1 ? '' : 's'}`}
-                          accessibilityState={{ selected: draftRating >= n }}
-                          style={styles.starButton}
-                          onPress={() => setDraftRating(n)}
-                        >
-                          <Text style={[styles.star, draftRating >= n && styles.starOn]}>★</Text>
-                        </Pressable>
+                          n={n}
+                          filled={draftRating >= n}
+                          colors={colors}
+                          styles={styles}
+                          reducedMotion={reducedMotion}
+                          onPress={setDraftRating}
+                        />
                       ))}
                     </View>
                     {place.tags.length > 0 && (
@@ -111,28 +203,30 @@ export function PlaceDetailModal({
                           {place.tags.map((tag) => {
                             const on = draftTags.includes(tag);
                             return (
-                              <Pressable
+                              <PressScale
                                 key={tag}
+                                reducedMotion={reducedMotion}
                                 accessibilityLabel={`${tag} tag`}
                                 accessibilityState={{ selected: on }}
                                 style={[styles.chip, on && styles.chipOn]}
                                 onPress={() => toggleTag(tag)}
                               >
                                 <Text style={[styles.chipText, on && styles.chipTextOn]}>{tag}</Text>
-                              </Pressable>
+                              </PressScale>
                             );
                           })}
                         </View>
                       </>
                     )}
-                    <Pressable
+                    <PressScale
+                      reducedMotion={reducedMotion}
                       accessibilityLabel="Save review"
                       accessibilityState={{ disabled: draftRating === 0 }}
                       style={[styles.saveButton, draftRating === 0 && styles.saveButtonDisabled]}
                       onPress={submitReview}
                     >
                       <Text style={styles.saveButtonText}>Save review</Text>
-                    </Pressable>
+                    </PressScale>
                   </View>
                 )}
               </View>
@@ -140,31 +234,37 @@ export function PlaceDetailModal({
           )}
           {place && onMarkBeen && (
             <View style={styles.actions}>
-              <Pressable
+              <PressScale
+                reducedMotion={reducedMotion}
+                containerStyle={styles.actionFlex}
                 accessibilityLabel="I went"
                 style={[styles.actionButton, styles.iWent]}
-                onPress={() => onMarkBeen(place.id)}
+                onPress={handleMarkBeen}
               >
                 <Text style={[styles.actionText, styles.iWentText]}>I went</Text>
-              </Pressable>
+              </PressScale>
             </View>
           )}
           {place && (
             <View style={styles.actions}>
-              <Pressable
+              <PressScale
+                reducedMotion={reducedMotion}
+                containerStyle={styles.actionFlex}
                 accessibilityLabel="Open in Maps"
                 style={[styles.actionButton, styles.directions]}
                 onPress={() => Linking.openURL(buildMapUrl(place))}
               >
                 <Text style={[styles.actionText, styles.directionsText]}>Open in Maps</Text>
-              </Pressable>
-              <Pressable
+              </PressScale>
+              <PressScale
+                reducedMotion={reducedMotion}
+                containerStyle={styles.actionFlex}
                 accessibilityLabel="Write a Google review"
                 style={[styles.actionButton, styles.googleReview]}
                 onPress={() => Linking.openURL(buildWriteReviewUrl(place))}
               >
                 <Text style={styles.actionText}>Google review</Text>
-              </Pressable>
+              </PressScale>
             </View>
           )}
           <Pressable accessibilityLabel="Close place detail" style={styles.close} onPress={onClose}>
@@ -242,13 +342,6 @@ function makeStyles(colors: Palette, type: TypeRamp) {
   starButton: {
     paddingHorizontal: spacing.xs + 1,
   },
-  star: {
-    fontSize: 34,
-    color: colors.tertiaryLabel,
-  },
-  starOn: {
-    color: colors.star,
-  },
   chipsLabel: {
     ...type.footnote,
     marginTop: spacing.md,
@@ -299,8 +392,10 @@ function makeStyles(colors: Palette, type: TypeRamp) {
     paddingHorizontal: spacing.xl,
     paddingBottom: spacing.lg,
   },
-  actionButton: {
+  actionFlex: {
     flex: 1,
+  },
+  actionButton: {
     paddingVertical: spacing.md,
     borderRadius: radius.md,
     alignItems: 'center',

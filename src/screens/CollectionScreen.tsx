@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, ActivityIndicator, FlatList, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import {
   getBeenCategoryStats,
@@ -13,6 +13,11 @@ import { applyReview, markBeen } from '../taste-engine';
 import type { Place, TasteGraph } from '../taste-engine';
 import { useTheme } from '../ThemeProvider';
 import { type Palette, type TypeRamp } from '../theme';
+import { formatCategory } from '../format';
+import { SettingsButton } from '../components/SettingsButton';
+import { Icon } from '../components/Icon';
+import { haptics } from '../haptics';
+import { spring, useReducedMotion } from '../motion';
 import { PlaceDetailModal } from './PlaceDetailModal';
 import { TonightSheet } from './TonightSheet';
 
@@ -23,6 +28,8 @@ interface CollectionScreenProps {
   signedIn?: boolean;
   /** Opens the sign-in prompt (issue #9) -- this is the "sync" moment named in the acceptance criteria. */
   onRequestSignIn?: () => void;
+  /** Opens the Settings sheet (the gear lives in this screen's header bar). */
+  onOpenSettings?: () => void;
 }
 
 type Tab = 'want' | 'been';
@@ -32,11 +39,14 @@ const TABS: { key: Tab; label: string }[] = [
   { key: 'been', label: 'Been' },
 ];
 
-export function CollectionScreen({ store, canSignIn, signedIn, onRequestSignIn }: CollectionScreenProps) {
+export function CollectionScreen({ store, canSignIn, signedIn, onRequestSignIn, onOpenSettings }: CollectionScreenProps) {
   const { colors, type } = useTheme();
   const styles = useMemo(() => makeStyles(colors, type), [colors, type]);
+  const reducedMotion = useReducedMotion();
   const [graph, setGraph] = useState<TasteGraph | null>(null);
   const [tab, setTab] = useState<Tab>('want');
+  const [tabsWidth, setTabsWidth] = useState(0);
+  const tabIndicatorAnim = useRef(new Animated.Value(0)).current;
   const [selected, setSelected] = useState<{
     place: Place;
     rating?: number;
@@ -88,21 +98,62 @@ export function CollectionScreen({ store, canSignIn, signedIn, onRequestSignIn }
     }
   };
 
+  const handleTabChange = (key: Tab) => {
+    if (key === tab) return;
+    haptics.selection();
+    setTab(key);
+    const toValue = TABS.findIndex((t) => t.key === key);
+    if (reducedMotion) {
+      tabIndicatorAnim.setValue(toValue);
+    } else {
+      Animated.spring(tabIndicatorAnim, {
+        toValue,
+        ...spring.snappy,
+        useNativeDriver: true,
+      }).start();
+    }
+  };
+
   return (
     <View style={styles.container}>
+      <View style={styles.header}>
+        <SettingsButton onPress={onOpenSettings} />
+      </View>
       {canSignIn && !signedIn && (
         <Pressable accessibilityLabel="Sync across devices" style={styles.syncBanner} onPress={onRequestSignIn}>
           <Text style={styles.syncBannerText}>Sync across devices</Text>
         </Pressable>
       )}
-      <View style={styles.tabs}>
+      <View
+        style={styles.tabs}
+        onLayout={(e) => setTabsWidth(e.nativeEvent.layout.width)}
+      >
+        {tabsWidth > 0 && (
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.tabIndicator,
+              {
+                width: (tabsWidth - 6) / TABS.length,
+                transform: [
+                  {
+                    translateX: tabIndicatorAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, (tabsWidth - 6) / TABS.length],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          />
+        )}
         {TABS.map(({ key, label }) => (
           <Pressable
             key={key}
             accessibilityLabel={`${label} tab`}
             accessibilityState={{ selected: tab === key }}
-            style={[styles.tab, tab === key && styles.tabActive]}
-            onPress={() => setTab(key)}
+            style={styles.tab}
+            onPress={() => handleTabChange(key)}
           >
             <Text style={[styles.tabText, tab === key && styles.tabTextActive]}>{label}</Text>
           </Pressable>
@@ -113,11 +164,12 @@ export function CollectionScreen({ store, canSignIn, signedIn, onRequestSignIn }
         <>
           {wantPlaces.length > 0 && (
             <Pressable
-              accessibilityLabel="Where should I go tonight?"
+              accessibilityLabel="Help me pick a place"
               style={styles.tonightButton}
               onPress={() => setTonightVisible(true)}
             >
-              <Text style={styles.tonightButtonText}>🌙 Where to tonight?</Text>
+              <Icon name="sparkles" size={15} color={colors.tint} style={styles.tonightButtonIcon} />
+              <Text style={styles.tonightButtonText}>Where to?</Text>
             </Pressable>
           )}
           <PlaceList
@@ -136,7 +188,7 @@ export function CollectionScreen({ store, canSignIn, signedIn, onRequestSignIn }
               {categoryStats.map((stat) => (
                 <View key={stat.category} style={styles.statChip}>
                   <Text style={styles.statText}>
-                    {stat.category} · {stat.count}
+                    {formatCategory(stat.category)} · {stat.count}
                   </Text>
                 </View>
               ))}
@@ -180,6 +232,7 @@ interface PlaceListProps {
 function PlaceList({ data, emptyText, onSelect, onMarkBeen }: PlaceListProps) {
   const { colors, type } = useTheme();
   const styles = useMemo(() => makeStyles(colors, type), [colors, type]);
+  const reducedMotion = useReducedMotion();
   if (data.length === 0) {
     return (
       <View style={styles.center}>
@@ -193,34 +246,70 @@ function PlaceList({ data, emptyText, onSelect, onMarkBeen }: PlaceListProps) {
       keyExtractor={(entry) => entry.place.id}
       contentContainerStyle={styles.list}
       renderItem={({ item }) => (
-        <Pressable
-          accessibilityLabel={`Open ${item.place.name}`}
-          style={styles.row}
-          onPress={() => onSelect(item)}
-        >
-          <Image source={{ uri: item.place.photoUrl }} style={styles.rowImage} />
-          <View style={styles.rowBody}>
-            <Text style={styles.rowName}>{item.place.name}</Text>
-            <Text style={styles.rowMeta}>
-              {item.place.category} · {item.place.priceBand}
-              {item.rating !== undefined ? ` · your rating ${'★'.repeat(item.rating)}` : ''}
-            </Text>
-          </View>
-          {onMarkBeen && (
-            <Pressable
-              accessibilityLabel={`I went to ${item.place.name}`}
-              style={styles.iWentRowButton}
-              onPress={(e) => {
-                e.stopPropagation();
-                onMarkBeen(item.place.id);
-              }}
-            >
-              <Text style={styles.iWentRowButtonText}>I went</Text>
-            </Pressable>
-          )}
-        </Pressable>
+        <PlaceRow
+          entry={item}
+          styles={styles}
+          reducedMotion={reducedMotion}
+          onSelect={onSelect}
+          onMarkBeen={onMarkBeen}
+        />
       )}
     />
+  );
+}
+
+interface PlaceRowProps {
+  entry: BeenEntry;
+  styles: ReturnType<typeof makeStyles>;
+  reducedMotion: boolean;
+  onSelect: (entry: BeenEntry) => void;
+  onMarkBeen?: (placeId: string) => void;
+}
+
+function PlaceRow({ entry, styles, reducedMotion, onSelect, onMarkBeen }: PlaceRowProps) {
+  const scale = useRef(new Animated.Value(1)).current;
+
+  const pressIn = () => {
+    if (reducedMotion) return;
+    Animated.spring(scale, { toValue: 0.97, ...spring.snappy, useNativeDriver: true }).start();
+  };
+  const pressOut = () => {
+    if (reducedMotion) return;
+    Animated.spring(scale, { toValue: 1, ...spring.snappy, useNativeDriver: true }).start();
+  };
+
+  return (
+    <Animated.View style={{ transform: [{ scale }] }}>
+      <Pressable
+        accessibilityLabel={`Open ${entry.place.name}`}
+        style={styles.row}
+        onPress={() => onSelect(entry)}
+        onPressIn={pressIn}
+        onPressOut={pressOut}
+      >
+        <Image source={{ uri: entry.place.photoUrl }} style={styles.rowImage} />
+        <View style={styles.rowBody}>
+          <Text style={styles.rowName}>{entry.place.name}</Text>
+          <Text style={styles.rowMeta}>
+            {formatCategory(entry.place.category)} · {entry.place.priceBand}
+            {entry.rating !== undefined ? ` · your rating ${'★'.repeat(entry.rating)}` : ''}
+          </Text>
+        </View>
+        {onMarkBeen && (
+          <Pressable
+            accessibilityLabel={`I went to ${entry.place.name}`}
+            style={styles.iWentRowButton}
+            onPress={(e) => {
+              e.stopPropagation();
+              haptics.success();
+              onMarkBeen(entry.place.id);
+            }}
+          >
+            <Text style={styles.iWentRowButtonText}>I went</Text>
+          </Pressable>
+        )}
+      </Pressable>
+    </Animated.View>
   );
 }
 
@@ -237,40 +326,58 @@ function makeStyles(colors: Palette, type: TypeRamp) {
       padding: 24,
     },
     emptyText: {
-      fontSize: 14,
+      ...type.subheadline,
       color: colors.secondaryLabel,
       textAlign: 'center',
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      // Just the settings gear -- the "Collection" title was redundant with the
+      // active tab-bar label, so it's dropped and the gear sits at the trailing edge.
+      justifyContent: 'flex-end',
+      paddingHorizontal: 16,
+      paddingTop: 8,
+      paddingBottom: 4,
     },
     syncBanner: {
       marginHorizontal: 16,
       marginTop: 12,
       paddingVertical: 10,
       borderRadius: 10,
-      backgroundColor: colors.tint,
+      backgroundColor: colors.fill,
       alignItems: 'center',
     },
     syncBannerText: {
-      color: colors.labelOnColor,
-      fontSize: 13,
+      ...type.footnote,
       fontWeight: '700',
+      color: colors.tint,
     },
     tabs: {
       flexDirection: 'row',
-      paddingHorizontal: 16,
-      paddingTop: 12,
-      gap: 8,
+      position: 'relative',
+      marginHorizontal: 16,
+      marginTop: 12,
+      padding: 3,
+      backgroundColor: colors.fill,
+      borderRadius: 13,
     },
-    tab: {
-      paddingVertical: 8,
-      paddingHorizontal: 16,
-      borderRadius: 16,
-      backgroundColor: colors.background,
-    },
-    tabActive: {
+    tabIndicator: {
+      position: 'absolute',
+      top: 3,
+      bottom: 3,
+      left: 3,
+      borderRadius: 10,
       backgroundColor: colors.tint,
     },
+    tab: {
+      flex: 1,
+      paddingVertical: 7,
+      borderRadius: 10,
+      alignItems: 'center',
+    },
     tabText: {
-      fontSize: 13,
+      ...type.subheadline,
       fontWeight: '600',
       color: colors.secondaryLabel,
     },
@@ -278,17 +385,23 @@ function makeStyles(colors: Palette, type: TypeRamp) {
       color: colors.labelOnColor,
     },
     tonightButton: {
-      marginHorizontal: 16,
+      flexDirection: 'row',
+      alignSelf: 'center',
       marginTop: 12,
-      paddingVertical: 12,
-      borderRadius: 12,
-      backgroundColor: colors.tint,
+      paddingVertical: 7,
+      paddingHorizontal: 14,
+      borderRadius: 999,
+      backgroundColor: colors.fill,
       alignItems: 'center',
+      justifyContent: 'center',
+    },
+    tonightButtonIcon: {
+      marginRight: 5,
     },
     tonightButtonText: {
-      color: colors.labelOnColor,
-      fontSize: 15,
-      fontWeight: '700',
+      ...type.subheadline,
+      fontWeight: '600',
+      color: colors.tint,
     },
     stats: {
       flexDirection: 'row',
@@ -304,7 +417,7 @@ function makeStyles(colors: Palette, type: TypeRamp) {
       paddingVertical: 6,
     },
     statText: {
-      fontSize: 12,
+      ...type.caption1,
       color: colors.secondaryLabel,
     },
     list: {
@@ -328,13 +441,12 @@ function makeStyles(colors: Palette, type: TypeRamp) {
       justifyContent: 'center',
     },
     rowName: {
-      fontSize: 15,
-      fontWeight: '700',
+      ...type.headline,
       color: colors.label,
     },
     rowMeta: {
+      ...type.footnote,
       marginTop: 3,
-      fontSize: 12,
       color: colors.secondaryLabel,
     },
     iWentRowButton: {
@@ -346,7 +458,7 @@ function makeStyles(colors: Palette, type: TypeRamp) {
       backgroundColor: colors.been,
     },
     iWentRowButtonText: {
-      fontSize: 12,
+      ...type.caption1,
       fontWeight: '700',
       color: colors.labelOnColor,
     },

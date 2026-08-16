@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { haptics } from '../haptics';
 import { useTheme } from '../ThemeProvider';
 import { type Palette, type TypeRamp } from '../theme';
 
@@ -33,9 +34,12 @@ export function SignInPromptModal({ visible, signingIn, error, onSignIn, onDismi
           {error && <Text style={styles.error}>{error}</Text>}
           <Pressable
             accessibilityLabel="Sign in with Apple"
-            style={styles.signIn}
+            style={({ pressed }) => [styles.signIn, pressed && styles.signInPressed]}
             disabled={signingIn}
-            onPress={onSignIn}
+            onPress={() => {
+              haptics.selection();
+              onSignIn();
+            }}
           >
             {signingIn ? (
               <ActivityIndicator color={colors.labelOnColor} />
@@ -43,7 +47,12 @@ export function SignInPromptModal({ visible, signingIn, error, onSignIn, onDismi
               <Text style={styles.signInText}>Sign in with Apple</Text>
             )}
           </Pressable>
-          <Pressable accessibilityLabel="Not now" style={styles.dismiss} onPress={onDismiss} disabled={signingIn}>
+          <Pressable
+            accessibilityLabel="Not now"
+            style={({ pressed }) => [styles.dismiss, pressed && styles.dismissPressed]}
+            onPress={onDismiss}
+            disabled={signingIn}
+          >
             <Text style={styles.dismissText}>Not now</Text>
           </Pressable>
         </View>
@@ -66,19 +75,16 @@ function makeStyles(colors: Palette, type: TypeRamp) {
       padding: 24,
     },
     title: {
-      fontSize: 20,
-      fontWeight: '700',
-      color: colors.label,
+      ...type.title3,
     },
     body: {
+      ...type.subheadline,
       marginTop: 8,
-      fontSize: 14,
       color: colors.secondaryLabel,
-      lineHeight: 20,
     },
     error: {
+      ...type.footnote,
       marginTop: 12,
-      fontSize: 13,
       color: colors.nope,
     },
     signIn: {
@@ -88,19 +94,24 @@ function makeStyles(colors: Palette, type: TypeRamp) {
       paddingVertical: 14,
       alignItems: 'center',
     },
+    signInPressed: {
+      opacity: 0.85,
+    },
     signInText: {
+      ...type.headline,
       color: colors.labelOnColor,
-      fontSize: 15,
-      fontWeight: '700',
     },
     dismiss: {
       marginTop: 10,
       paddingVertical: 12,
       alignItems: 'center',
     },
+    dismissPressed: {
+      opacity: 0.55,
+    },
     dismissText: {
+      ...type.subheadline,
       color: colors.secondaryLabel,
-      fontSize: 14,
       fontWeight: '600',
     },
   });
