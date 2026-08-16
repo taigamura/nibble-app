@@ -39,7 +39,7 @@ describe('runEnrichment', () => {
       fetchImpl: fetchImpl as unknown as typeof fetch,
     });
 
-    expect(result).toEqual({ tagged: 1 });
+    expect(result).toEqual({ tagged: 1, failed: 0 });
     expect(fetchImpl).toHaveBeenCalledTimes(4);
 
     const [selectUrl] = fetchImpl.mock.calls[0];
@@ -61,6 +61,47 @@ describe('runEnrichment', () => {
     ]);
   });
 
+  it('skips a place whose upstream call fails, tags the rest, and reports the failure', async () => {
+    const fetchImpl = jest.fn();
+    // 1. fetchUntaggedPlaces -> two places
+    fetchImpl.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => [
+        { place_id: 'p1', name: 'Rate Limited', category: 'ramen' },
+        { place_id: 'p2', name: 'Fuunji', category: 'ramen' },
+      ],
+    });
+    // 2. p1: Google Place Details -> 429, aborts this place only
+    fetchImpl.mockResolvedValueOnce({ ok: false, status: 429, json: async () => ({}) });
+    // 3. p2: Google Place Details -> ok
+    fetchImpl.mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ reviews: [] }) });
+    // 4. p2: Anthropic -> ok
+    fetchImpl.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ content: [{ type: 'text', text: JSON.stringify(validTags) }] }),
+    });
+    // 5. p2: persistTags PATCH -> ok
+    fetchImpl.mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({}) });
+
+    const result = await runEnrichment({
+      anthropicApiKey: 'a-key',
+      googlePlacesApiKey: 'g-key',
+      supabaseUrl: 'https://project.supabase.co',
+      supabaseServiceRoleKey: 'service-key',
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+
+    expect(result).toEqual({ tagged: 1, failed: 1 });
+    // p1 never reaches persistTags; only p2's PATCH fires.
+    const patchCalls = fetchImpl.mock.calls.filter(
+      ([, init]) => (init as RequestInit | undefined)?.method === 'PATCH',
+    );
+    expect(patchCalls).toHaveLength(1);
+    expect(String(patchCalls[0][0])).toContain('place_id=eq.p2');
+  });
+
   it('does nothing when there are no untagged places', async () => {
     const fetchImpl = fetchSequence([]);
 
@@ -72,7 +113,7 @@ describe('runEnrichment', () => {
       fetchImpl: fetchImpl as unknown as typeof fetch,
     });
 
-    expect(result).toEqual({ tagged: 0 });
+    expect(result).toEqual({ tagged: 0, failed: 0 });
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 });

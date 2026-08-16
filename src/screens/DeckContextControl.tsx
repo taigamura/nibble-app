@@ -1,7 +1,7 @@
 import React from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { CENTRAL_TOKYO_AREAS, RADIUS_OPTIONS_METERS } from '../config/areas';
+import { DECK_AREAS, RADIUS_OPTIONS_METERS } from '../config/areas';
 import type { DeckContext } from '../providers/types';
 
 interface DeckContextControlProps {
@@ -19,7 +19,7 @@ function formatRadius(meters: number): string {
 
 /**
  * Lets the user widen/narrow the deck radius and re-center it on a different
- * central-Tokyo area (issue #10). Only ever changes the `DeckContext` passed
+ * east-Tokyo area (issue #10). Only ever changes the `DeckContext` passed
  * back up to `SwipeScreen` -- it never touches the taste graph, so switching
  * area/radius can't corrupt learned taste.
  */
@@ -31,7 +31,7 @@ export function DeckContextControl({
   onClose,
 }: DeckContextControlProps) {
   const selectedAreaId = context.center
-    ? CENTRAL_TOKYO_AREAS.find(
+    ? DECK_AREAS.find(
         (area) => area.center.lat === context.center!.lat && area.center.lng === context.center!.lng
       )?.id
     : undefined;
@@ -71,7 +71,7 @@ export function DeckContextControl({
                 {currentLocationLabel}
               </Text>
             </Pressable>
-            {CENTRAL_TOKYO_AREAS.map((area) => (
+            {DECK_AREAS.map((area) => (
               <Pressable
                 key={area.id}
                 accessibilityLabel={area.name}

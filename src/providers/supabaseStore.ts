@@ -25,7 +25,9 @@ export class SupabaseStore implements Store {
   private readonly fetchImpl: typeof fetch;
 
   constructor(private readonly options: SupabaseStoreOptions) {
-    this.fetchImpl = options.fetchImpl ?? fetch;
+    // Bound to the realm global; browsers throw "Illegal invocation" if
+    // window.fetch is called off an instance rather than the global object.
+    this.fetchImpl = options.fetchImpl ?? fetch.bind(globalThis);
   }
 
   async getGraph(): Promise<TasteGraph> {

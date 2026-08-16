@@ -7,17 +7,19 @@ export interface Area {
 }
 
 /**
- * Named central-Tokyo areas the user can re-center the deck on (issue #10).
- * Coordinates are the area's station/center point -- close enough for a
- * "deck center", not meant for turn-by-turn precision.
+ * Named east-Tokyo areas the user can re-center the deck on (issue #10).
+ * These cover the Kinshicho / Sumida beachhead around the default deck
+ * center, and line up with the ingest seed points in scripts/ingestPlaces.ts
+ * so every preset has curated places behind it. Coordinates are the area's
+ * station/center point -- close enough for a "deck center", not meant for
+ * turn-by-turn precision.
  */
-export const CENTRAL_TOKYO_AREAS: Area[] = [
-  { id: 'shibuya', name: 'Shibuya', center: { lat: 35.6595, lng: 139.7005 } },
-  { id: 'shimokitazawa', name: 'Shimokitazawa', center: { lat: 35.6613, lng: 139.6683 } },
-  { id: 'ebisu', name: 'Ebisu', center: { lat: 35.6467, lng: 139.71 } },
-  { id: 'nakameguro', name: 'Nakameguro', center: { lat: 35.6438, lng: 139.6989 } },
-  { id: 'shinjuku', name: 'Shinjuku', center: { lat: 35.6896, lng: 139.6995 } },
-  { id: 'kichijoji', name: 'Kichijoji', center: { lat: 35.7032, lng: 139.5798 } },
+export const DECK_AREAS: Area[] = [
+  { id: 'kinshicho', name: 'Kinshicho', center: { lat: 35.6969, lng: 139.8146 } },
+  { id: 'kameido', name: 'Kameido', center: { lat: 35.6976, lng: 139.8267 } },
+  { id: 'ryogoku', name: 'Ryogoku', center: { lat: 35.6958, lng: 139.7933 } },
+  { id: 'oshiage', name: 'Oshiage', center: { lat: 35.7101, lng: 139.8107 } },
+  { id: 'sumiyoshi', name: 'Sumiyoshi', center: { lat: 35.6839, lng: 139.8175 } },
 ];
 
 /** Radius presets offered by the deck's context control, widest last. */

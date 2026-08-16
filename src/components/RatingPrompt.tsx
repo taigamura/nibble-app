@@ -1,6 +1,8 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { elevate } from '../theme';
+
 interface RatingPromptProps {
   placeName: string;
   onRate: (rating: number) => void;
@@ -16,7 +18,7 @@ const STARS = [1, 2, 3, 4, 5];
  */
 export function RatingPrompt({ placeName, onRate, onSkip }: RatingPromptProps) {
   return (
-    <View style={styles.wrapper} pointerEvents="box-none">
+    <View style={[styles.wrapper, { pointerEvents: 'box-none' }]}>
       <View style={styles.card}>
         <Text style={styles.title}>How was {placeName}?</Text>
         <View style={styles.stars}>
@@ -54,11 +56,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 20,
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 8,
+    ...elevate(4, 10, 0.2, 8),
   },
   title: {
     fontSize: 15,

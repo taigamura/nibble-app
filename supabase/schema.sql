@@ -20,6 +20,20 @@ create table if not exists places (
 
 create index if not exists places_lat_lng_idx on places (lat, lng);
 
+-- `places` is curated, non-personal public data. RLS is enabled to match
+-- Supabase's secure-by-default posture, with a single permissive policy that
+-- lets the app's anon (and authenticated) role read the deck. Writes stay
+-- restricted to the service-role key used by scripts/ingestPlaces.ts, which
+-- bypasses RLS -- so no write policy is needed here. Without this policy the
+-- anon SELECT returns zero rows (no error), which surfaces as an empty deck.
+alter table places enable row level security;
+
+drop policy if exists "Places are publicly readable" on places;
+create policy "Places are publicly readable"
+  on places
+  for select
+  using (true);
+
 -- One row per signed-in user, backing SupabaseStore (issue #9). Anonymous
 -- users never get a row here -- their graph stays in on-device AsyncStorage
 -- (see src/providers/localStore.ts) until they sign in with Apple, at which

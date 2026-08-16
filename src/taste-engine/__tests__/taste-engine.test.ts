@@ -1,4 +1,4 @@
-import { applyRating, emptyTasteGraph, rankDeck, updateTaste, whySurfaced } from '..';
+import { applyRating, applyReview, emptyTasteGraph, rankDeck, updateTaste, whySurfaced } from '..';
 import type { Place, SwipeEvent, TasteGraph } from '../types';
 
 function place(overrides: Partial<Place>): Place {
@@ -111,6 +111,40 @@ describe('applyRating', () => {
   });
 });
 
+describe('applyReview', () => {
+  it('records the rating and boosts affirmed tags above the rating-only weight', () => {
+    const p = place({ id: 'p1', category: 'ramen', tags: ['tonkotsu', 'cozy'] });
+    const been = updateTaste(emptyTasteGraph(), swipe(p, 'been'));
+
+    const rated = applyRating(been, 'p1', 5);
+    const reviewed = applyReview(been, 'p1', { rating: 5, reviewTags: ['tonkotsu'] });
+
+    expect(reviewed.ratings.p1).toBe(5);
+    // Affirmed tag gets the review bonus on top of the rating weight...
+    expect(reviewed.vector.tonkotsu).toBeGreaterThan(rated.vector.tonkotsu);
+    // ...while an un-affirmed tag stays at the plain rating weight.
+    expect(reviewed.vector.cozy).toBe(rated.vector.cozy);
+  });
+
+  it('survives a history replay (mergeGraphs / undo path)', () => {
+    const p = place({ id: 'p1', category: 'ramen', tags: ['tonkotsu'] });
+    const been = updateTaste(emptyTasteGraph(), swipe(p, 'been'));
+    const reviewed = applyReview(been, 'p1', { rating: 5, reviewTags: ['tonkotsu'] });
+
+    const replayed = reviewed.history.reduce(updateTaste, emptyTasteGraph());
+    expect(replayed.vector).toEqual(reviewed.vector);
+  });
+
+  it('does not mutate the input graph', () => {
+    const p = place({ id: 'p1', category: 'ramen', tags: ['tonkotsu'] });
+    const been = updateTaste(emptyTasteGraph(), swipe(p, 'been'));
+    const before = been.vector.tonkotsu;
+    applyReview(been, 'p1', { rating: 5, reviewTags: ['tonkotsu'] });
+
+    expect(been.vector.tonkotsu).toBe(before);
+  });
+});
+
 describe('rankDeck', () => {
   const places: Place[] = [
     place({ id: 'ramen-1', category: 'ramen', tags: ['tonkotsu'] }),
@@ -126,7 +160,9 @@ describe('rankDeck', () => {
   ];
 
   it('excludes already-actioned places', () => {
-    const graph: TasteGraph = { ...emptyTasteGraph(), actionedPlaceIds: ['ramen-1', 'bar-1'] };
+    let graph: TasteGraph = emptyTasteGraph();
+    graph = updateTaste(graph, swipe(places.find((p) => p.id === 'ramen-1')!, 'want'));
+    graph = updateTaste(graph, swipe(places.find((p) => p.id === 'bar-1')!, 'been'));
     const deck = rankDeck(graph, places, { seed: 1 });
 
     expect(deck.find((p) => p.id === 'ramen-1')).toBeUndefined();

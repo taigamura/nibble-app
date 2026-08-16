@@ -26,6 +26,18 @@ export function getBeenEntries(graph: TasteGraph): BeenEntry[] {
     .map((event) => ({ place: event.place, rating: graph.ratings[event.place.id] }));
 }
 
+/**
+ * The tags a user affirmed in an in-app review of a Been place, so the detail
+ * sheet can re-open with those chips already selected. Derived from history
+ * (like the Want/Been surfaces) rather than a separate store field.
+ */
+export function getReviewTags(graph: TasteGraph, placeId: string): string[] {
+  const event = graph.history.find(
+    (e) => e.action === 'been' && e.place.id === placeId && e.reviewTags !== undefined
+  );
+  return event?.reviewTags ?? [];
+}
+
 export interface CategoryStat {
   category: string;
   count: number;
@@ -40,28 +52,4 @@ export function getBeenCategoryStats(graph: TasteGraph): CategoryStat[] {
   return [...counts.entries()]
     .map(([category, count]) => ({ category, count }))
     .sort((a, b) => b.count - a.count || a.category.localeCompare(b.category));
-}
-
-export type MapPointKind = 'want' | 'been';
-
-export interface MapPoint {
-  place: Place;
-  kind: MapPointKind;
-}
-
-/**
- * Want + Been places with known coordinates, ready for the map view. Places
- * missing lat/lng (possible for hand-authored fixtures without geo data)
- * are dropped rather than plotted at a guessed location.
- */
-export function getMapPoints(graph: TasteGraph): MapPoint[] {
-  const hasCoords = (place: Place) => place.lat !== undefined && place.lng !== undefined;
-  const want = getWantPlaces(graph)
-    .filter(hasCoords)
-    .map((place): MapPoint => ({ place, kind: 'want' }));
-  const been = getBeenEntries(graph)
-    .map((entry) => entry.place)
-    .filter(hasCoords)
-    .map((place): MapPoint => ({ place, kind: 'been' }));
-  return [...want, ...been];
 }

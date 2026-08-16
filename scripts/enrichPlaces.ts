@@ -3,9 +3,9 @@
  * doesn't have tags yet with LLM-derived vibe/specialty taste tags, and
  * persists them permanently in Supabase. See issue #4.
  *
- * Run with real credentials, e.g.:
+ * Run with real credentials (loads .env, then `npm run enrich`), e.g.:
  *   ANTHROPIC_API_KEY=... GOOGLE_PLACES_API_KEY=... SUPABASE_URL=... \
- *     SUPABASE_SERVICE_ROLE_KEY=... npx ts-node scripts/enrichPlaces.ts
+ *     SUPABASE_SERVICE_ROLE_KEY=... npm run enrich
  *
  * Re-running is safe and cheap: only rows with empty `tags` are selected,
  * so already-tagged places are never re-sent to the LLM.
@@ -68,7 +68,9 @@ export async function runEnrichment(options: {
   supabaseUrl: string;
   supabaseServiceRoleKey: string;
   fetchImpl?: typeof fetch;
-}): Promise<{ tagged: number }> {
+  /** Milliseconds to pause between places, to stay under upstream rate limits. */
+  delayMs?: number;
+}): Promise<{ tagged: number; failed: number }> {
   const fetchImpl = options.fetchImpl ?? fetch;
   const provider = new LlmEnrichmentProvider({
     anthropicApiKey: options.anthropicApiKey,
@@ -79,13 +81,27 @@ export async function runEnrichment(options: {
   const untagged = await fetchUntaggedPlaces(options.supabaseUrl, options.supabaseServiceRoleKey, fetchImpl);
 
   let tagged = 0;
+  let failed = 0;
   for (const row of untagged) {
-    const tags = await provider.enrich({ id: row.place_id, name: row.name, category: row.category });
-    await persistTags(row.place_id, tags, options.supabaseUrl, options.supabaseServiceRoleKey, fetchImpl);
-    tagged += 1;
+    try {
+      const tags = await provider.enrich({ id: row.place_id, name: row.name, category: row.category });
+      await persistTags(row.place_id, tags, options.supabaseUrl, options.supabaseServiceRoleKey, fetchImpl);
+      tagged += 1;
+    } catch (error) {
+      // A transient failure on one place (e.g. a Google 429) must not abort
+      // the whole batch. Leave this row's tags empty so a re-run retries it,
+      // and move on. Enrichment is idempotent: only empty-tag rows are picked.
+      failed += 1;
+      // eslint-disable-next-line no-console
+      console.warn(`  skipped ${row.name} (${row.place_id}): ${(error as Error).message}`);
+    }
+    // Gentle throttle between places to stay under Google/Anthropic rate limits.
+    if (options.delayMs && options.delayMs > 0) {
+      await new Promise((resolve) => setTimeout(resolve, options.delayMs));
+    }
   }
 
-  return { tagged };
+  return { tagged, failed };
 }
 
 /* eslint-disable no-console */
@@ -102,9 +118,12 @@ if (require.main === module) {
     process.exit(1);
   }
 
-  runEnrichment({ anthropicApiKey, googlePlacesApiKey, supabaseUrl, supabaseServiceRoleKey })
-    .then(({ tagged }) => {
-      console.log(`Enrichment complete: ${tagged} place(s) tagged.`);
+  runEnrichment({ anthropicApiKey, googlePlacesApiKey, supabaseUrl, supabaseServiceRoleKey, delayMs: 350 })
+    .then(({ tagged, failed }) => {
+      console.log(
+        `Enrichment complete: ${tagged} place(s) tagged` +
+          (failed > 0 ? `, ${failed} skipped (re-run to retry).` : '.'),
+      );
     })
     .catch((error) => {
       console.error('Enrichment failed:', error);

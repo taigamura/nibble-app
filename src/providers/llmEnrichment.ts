@@ -44,6 +44,23 @@ const REQUIRED_KEYS: (keyof EnrichmentTags)[] = [
   'noise',
 ];
 
+const ARRAY_KEYS: (keyof EnrichmentTags)[] = ['vibe', 'good_for', 'not_for'];
+
+/**
+ * Coerces a value the LLM supplied for an array-typed field into a string
+ * array. The model occasionally returns a bare string (e.g. `"good_for": "solo"`)
+ * instead of a single-element array; wrap those rather than crashing on `.map`.
+ */
+function coerceStringArray(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.filter((item): item is string => typeof item === 'string');
+  }
+  if (typeof value === 'string') {
+    return value.trim() === '' ? [] : [value];
+  }
+  return [];
+}
+
 /** Parses and validates the LLM's JSON response, tolerating markdown code fences. */
 export function parseEnrichmentResponse(responseText: string): EnrichmentTags {
   const fenced = responseText.match(/```(?:json)?\s*([\s\S]*?)```/);
@@ -54,6 +71,10 @@ export function parseEnrichmentResponse(responseText: string): EnrichmentTags {
     if (parsed[key] === undefined) {
       throw new Error(`Enrichment response missing required key: ${key}`);
     }
+  }
+
+  for (const key of ARRAY_KEYS) {
+    (parsed[key] as unknown) = coerceStringArray(parsed[key]);
   }
 
   return parsed as EnrichmentTags;

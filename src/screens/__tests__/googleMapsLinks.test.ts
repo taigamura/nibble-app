@@ -1,4 +1,6 @@
-import { buildDirectionsUrl, buildWriteReviewUrl } from '../googleMapsLinks';
+import { Platform } from 'react-native';
+
+import { buildMapUrl, buildWriteReviewUrl } from '../googleMapsLinks';
 import type { Place } from '../../taste-engine';
 
 const place: Place = {
@@ -12,9 +14,38 @@ const place: Place = {
   photoUrl: 'https://example.com/photo.jpg',
 };
 
-describe('buildDirectionsUrl', () => {
-  it('deep-links to Maps navigation using the stored place id', () => {
-    const url = buildDirectionsUrl(place);
+const placeWithGeo: Place = { ...place, lat: 35.7, lng: 139.8 };
+
+describe('buildMapUrl', () => {
+  const originalOS = Platform.OS;
+
+  afterEach(() => {
+    Platform.OS = originalOS;
+  });
+
+  it('deep-links to Apple Maps on iOS', () => {
+    Platform.OS = 'ios';
+    const url = buildMapUrl(place);
+    expect(url).toBe('http://maps.apple.com/?q=Tsuta%20Ramen%20%26%20Sons');
+  });
+
+  it('includes coordinates for Apple Maps when available', () => {
+    Platform.OS = 'ios';
+    const url = buildMapUrl(placeWithGeo);
+    expect(url).toBe('http://maps.apple.com/?q=Tsuta%20Ramen%20%26%20Sons&ll=35.7,139.8');
+  });
+
+  it('deep-links to Google Maps navigation on Android', () => {
+    Platform.OS = 'android';
+    const url = buildMapUrl(place);
+    expect(url).toBe(
+      'https://www.google.com/maps/dir/?api=1&destination=Tsuta%20Ramen%20%26%20Sons&destination_place_id=ChIJ_place_123'
+    );
+  });
+
+  it('deep-links to Google Maps navigation on web', () => {
+    Platform.OS = 'web';
+    const url = buildMapUrl(place);
     expect(url).toBe(
       'https://www.google.com/maps/dir/?api=1&destination=Tsuta%20Ramen%20%26%20Sons&destination_place_id=ChIJ_place_123'
     );
