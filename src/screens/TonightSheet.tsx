@@ -1,8 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Image, Linking, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Image, Linking, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { rankTonight } from '../collection/tonight';
 import { applyAnswer, nextQuestion, type DrillAxis } from '../collection/tonightDrilldown';
+import { formatCategory } from '../format';
+import { haptics } from '../haptics';
+import { spring, useReducedMotion } from '../motion';
 import type { Place, TasteVector } from '../taste-engine';
 import { seededShuffle, whySurfaced } from '../taste-engine';
 import { radius, shadow, spacing, type Palette, type TypeRamp } from '../theme';
@@ -41,9 +44,38 @@ interface Answer {
  * from whatever remains, seeded so "another" re-rolls deterministically.
  * Never mutates the taste graph -- it only ever reads `wantPlaces`/`vector`.
  */
+/** A Pressable that springs to a slight scale-down while held, for tactile feedback. */
+function PressScale({
+  children,
+  style,
+  reducedMotion,
+  onPress,
+  ...rest
+}: React.ComponentProps<typeof Pressable> & { reducedMotion: boolean }) {
+  const scale = useRef(new Animated.Value(1)).current;
+
+  const pressIn = () => {
+    if (reducedMotion) return;
+    Animated.spring(scale, { toValue: 0.95, ...spring.snappy, useNativeDriver: true }).start();
+  };
+  const pressOut = () => {
+    if (reducedMotion) return;
+    Animated.spring(scale, { toValue: 1, ...spring.snappy, useNativeDriver: true }).start();
+  };
+
+  return (
+    <Animated.View style={{ transform: [{ scale }] }}>
+      <Pressable {...rest} style={style} onPress={onPress} onPressIn={pressIn} onPressOut={pressOut}>
+        {children}
+      </Pressable>
+    </Animated.View>
+  );
+}
+
 export function TonightSheet({ visible, wantPlaces, vector, onClose, seed }: TonightSheetProps) {
   const { colors, type } = useTheme();
   const styles = useMemo(() => makeStyles(colors, type), [colors, type]);
+  const reducedMotion = useReducedMotion();
   const sessionSeed = useRef(seed ?? Date.now()).current;
 
   const [mode, setMode] = useState<'drill' | 'result' | 'random'>('drill');
@@ -97,15 +129,18 @@ export function TonightSheet({ visible, wantPlaces, vector, onClose, seed }: Ton
   const isLast = mode === 'random' ? remaining.length <= 1 : resultIndex >= ranked.length - 1;
 
   const handleAnswer = (axis: DrillAxis, value: string | null) => {
+    haptics.selection();
     setAnswers((prev) => [...prev, { axis, value }]);
   };
 
   const handleBack = () => {
+    haptics.selection();
     setAnswers((prev) => prev.slice(0, -1));
     setMode('drill');
   };
 
   const handleStartOver = () => {
+    haptics.selection();
     setMode('drill');
     setAnswers([]);
     setResultIndex(0);
@@ -118,11 +153,17 @@ export function TonightSheet({ visible, wantPlaces, vector, onClose, seed }: Ton
   };
 
   const handleAnother = () => {
+    haptics.selection();
     if (mode === 'random') {
       setRerollCount((n) => n + 1);
     } else {
       setResultIndex((i) => i + 1);
     }
+  };
+
+  const handleGo = () => {
+    haptics.success();
+    void Linking.openURL(buildMapUrl(pick!));
   };
 
   const canGoBack = mode !== 'random' && answers.length > 0;
@@ -134,7 +175,7 @@ export function TonightSheet({ visible, wantPlaces, vector, onClose, seed }: Ton
         <View style={styles.sheet}>
           <View style={styles.grabber} />
           <View style={styles.header}>
-            <Text style={styles.title}>Where to tonight?</Text>
+            <Text style={styles.title}>Where to?</Text>
             {showRandomizer && (
               <Pressable accessibilityLabel="Just pick for me" onPress={handleRandomPick}>
                 <Text style={styles.randomLink}>just pick for me 🎲</Text>
@@ -152,23 +193,31 @@ export function TonightSheet({ visible, wantPlaces, vector, onClose, seed }: Ton
             <>
               <Text style={styles.question}>{AXIS_QUESTION[question.axis]}</Text>
               <View style={styles.chipRow}>
-                {question.options.map((value) => (
-                  <Pressable
-                    key={value}
-                    accessibilityLabel={`Choose ${value}`}
-                    style={styles.chip}
-                    onPress={() => handleAnswer(question.axis, value)}
-                  >
-                    <Text style={styles.chipText}>{value}</Text>
-                  </Pressable>
-                ))}
-                <Pressable
+                {question.options.map((value) => {
+                  // Cuisine options are raw category slugs (e.g. `coffee_shop`);
+                  // humanize the label but keep the slug as the answer value so
+                  // `applyAnswer`'s exact-match filter still works.
+                  const label = question.axis === 'cuisine' ? formatCategory(value) : value;
+                  return (
+                    <PressScale
+                      key={value}
+                      accessibilityLabel={`Choose ${label}`}
+                      style={styles.chip}
+                      reducedMotion={reducedMotion}
+                      onPress={() => handleAnswer(question.axis, value)}
+                    >
+                      <Text style={styles.chipText}>{label}</Text>
+                    </PressScale>
+                  );
+                })}
+                <PressScale
                   accessibilityLabel="No preference"
                   style={[styles.chip, styles.chipAny]}
+                  reducedMotion={reducedMotion}
                   onPress={() => handleAnswer(question.axis, null)}
                 >
                   <Text style={styles.chipText}>Any</Text>
-                </Pressable>
+                </PressScale>
               </View>
 
               {canGoBack && (
@@ -190,29 +239,31 @@ export function TonightSheet({ visible, wantPlaces, vector, onClose, seed }: Ton
                 <View style={styles.cardBody}>
                   <Text style={styles.name}>{pick.name}</Text>
                   <Text style={styles.meta}>
-                    {pick.category} · {pick.priceBand} · {Math.round(pick.distanceMeters)}m away
+                    {formatCategory(pick.category)} · {pick.priceBand} · {Math.round(pick.distanceMeters)}m away
                   </Text>
                   {reason && <Text style={styles.reason}>{reason}</Text>}
                 </View>
               </View>
 
-              <Pressable
+              <PressScale
                 accessibilityLabel={`Let's go to ${pick.name}`}
                 style={[styles.button, styles.go]}
-                onPress={() => Linking.openURL(buildMapUrl(pick))}
+                reducedMotion={reducedMotion}
+                onPress={handleGo}
               >
                 <Text style={[styles.buttonText, styles.goText]}>Let&apos;s go</Text>
-              </Pressable>
-              <Pressable
-                accessibilityLabel="Not tonight, suggest another"
+              </PressScale>
+              <PressScale
+                accessibilityLabel="Suggest another"
                 accessibilityState={{ disabled: isLast }}
                 style={[styles.button, styles.next, isLast && styles.buttonDisabled]}
+                reducedMotion={reducedMotion}
                 onPress={() => !isLast && handleAnother()}
               >
                 <Text style={styles.buttonText}>
-                  {isLast ? 'No more nearby' : 'Not tonight -- another'}
+                  {isLast ? 'No more nearby' : 'Show another'}
                 </Text>
-              </Pressable>
+              </PressScale>
 
               <View style={styles.footerRow}>
                 {canGoBack && (

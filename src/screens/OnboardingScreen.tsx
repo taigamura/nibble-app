@@ -1,6 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, ActivityIndicator, FlatList, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { Icon } from '../components/Icon';
+import { formatCategory } from '../format';
+import { haptics } from '../haptics';
+import { spring, useReducedMotion, REDUCED_MOTION_DURATION } from '../motion';
 import { seedBeenSignals } from '../onboarding/seedBeenSignals';
 import type { PlacesProvider, Store } from '../providers/types';
 import type { Place } from '../taste-engine';
@@ -26,9 +30,11 @@ interface OnboardingScreenProps {
 export function OnboardingScreen({ placesProvider, store, requestLocation, onComplete }: OnboardingScreenProps) {
   const { colors, type } = useTheme();
   const styles = useMemo(() => makeStyles(colors, type), [colors, type]);
+  const reducedMotion = useReducedMotion();
   const [places, setPlaces] = useState<Place[] | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [finishing, setFinishing] = useState(false);
+  const continueScale = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     void requestLocation();
@@ -67,8 +73,21 @@ export function OnboardingScreen({ placesProvider, store, requestLocation, onCom
       const currentGraph = await store.getGraph();
       const seededGraph = seedBeenSignals(currentGraph, chosenPlaces);
       await store.saveGraph(seededGraph);
+      haptics.success();
     }
     onComplete();
+  };
+
+  const pressContinue = () => {
+    if (reducedMotion) {
+      void finish(selected);
+      return;
+    }
+    Animated.sequence([
+      Animated.spring(continueScale, { ...spring.bouncy, toValue: 0.96, useNativeDriver: true }),
+      Animated.spring(continueScale, { ...spring.bouncy, toValue: 1, useNativeDriver: true }),
+    ]).start();
+    void finish(selected);
   };
 
   if (!places) {
@@ -106,48 +125,96 @@ export function OnboardingScreen({ placesProvider, store, requestLocation, onCom
         numColumns={1}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.list}
-        renderItem={({ item }) => {
-          const isSelected = selected.has(item.id);
-          return (
-            <Pressable
-              accessibilityLabel={`Been to ${item.name}`}
-              accessibilityRole="checkbox"
-              accessibilityState={{ selected: isSelected, checked: isSelected }}
-              style={[styles.tile, isSelected && styles.tileSelected]}
-              onPress={() => toggle(item.id)}
-            >
-              <Image source={{ uri: item.photoUrl }} style={styles.tileImage} />
-              <View style={styles.tileBody}>
-                <View style={styles.tileTextGroup}>
-                  <Text style={styles.tileName} numberOfLines={1}>
-                    {item.name}
-                  </Text>
-                  <Text style={styles.tileMeta} numberOfLines={1}>
-                    {item.category} · {item.priceBand}
-                  </Text>
-                </View>
-                <View style={[styles.checkBadge, isSelected && styles.checkBadgeSelected]}>
-                  {isSelected && <Text style={styles.checkText}>✓</Text>}
-                </View>
-              </View>
-            </Pressable>
-          );
-        }}
+        renderItem={({ item }) => (
+          <OnboardingTile
+            item={item}
+            isSelected={selected.has(item.id)}
+            styles={styles}
+            colors={colors}
+            reducedMotion={reducedMotion}
+            onToggle={() => toggle(item.id)}
+          />
+        )}
       />
       <View style={styles.footer}>
         <Pressable
           accessibilityLabel="Continue to deck"
           accessibilityRole="button"
-          style={({ pressed }) => [styles.done, pressed && styles.pressed]}
-          onPress={() => void finish(selected)}
+          onPress={pressContinue}
           disabled={finishing}
         >
-          <Text style={styles.doneText}>
-            {selected.size > 0 ? `Continue — ${selected.size} been` : 'Continue'}
-          </Text>
+          <Animated.View style={[styles.done, { transform: [{ scale: continueScale }] }]}>
+            <Text style={styles.doneText}>
+              {selected.size > 0 ? `Continue — ${selected.size} been` : 'Continue'}
+            </Text>
+          </Animated.View>
         </Pressable>
       </View>
     </View>
+  );
+}
+
+interface OnboardingTileProps {
+  item: Place;
+  isSelected: boolean;
+  styles: ReturnType<typeof makeStyles>;
+  colors: Palette;
+  reducedMotion: boolean;
+  onToggle: () => void;
+}
+
+function OnboardingTile({ item, isSelected, styles, colors, reducedMotion, onToggle }: OnboardingTileProps) {
+  const scale = useRef(new Animated.Value(1)).current;
+  const checkScale = useRef(new Animated.Value(isSelected ? 1 : 0)).current;
+
+  useEffect(() => {
+    if (reducedMotion) {
+      checkScale.setValue(isSelected ? 1 : 0);
+      return;
+    }
+    Animated.spring(checkScale, { ...spring.bouncy, toValue: isSelected ? 1 : 0, useNativeDriver: true }).start();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSelected, reducedMotion]);
+
+  const handlePress = () => {
+    haptics.selection();
+    if (reducedMotion) {
+      onToggle();
+      return;
+    }
+    Animated.sequence([
+      Animated.spring(scale, { ...spring.bouncy, toValue: 0.96, useNativeDriver: true }),
+      Animated.spring(scale, { ...spring.bouncy, toValue: 1, useNativeDriver: true }),
+    ]).start();
+    onToggle();
+  };
+
+  return (
+    <Pressable
+      accessibilityLabel={`Been to ${item.name}`}
+      accessibilityRole="checkbox"
+      accessibilityState={{ selected: isSelected, checked: isSelected }}
+      onPress={handlePress}
+    >
+      <Animated.View style={[styles.tile, isSelected && styles.tileSelected, { transform: [{ scale }] }]}>
+        <Image source={{ uri: item.photoUrl }} style={styles.tileImage} />
+        <View style={styles.tileBody}>
+          <View style={styles.tileTextGroup}>
+            <Text style={styles.tileName} numberOfLines={1}>
+              {item.name}
+            </Text>
+            <Text style={styles.tileMeta} numberOfLines={1}>
+              {formatCategory(item.category)} · {item.priceBand}
+            </Text>
+          </View>
+          <View style={[styles.checkBadge, isSelected && styles.checkBadgeSelected]}>
+            <Animated.View style={{ transform: [{ scale: checkScale }] }}>
+              <Icon name="been" size={15} color={colors.labelOnColor} />
+            </Animated.View>
+          </View>
+        </View>
+      </Animated.View>
+    </Pressable>
   );
 }
 

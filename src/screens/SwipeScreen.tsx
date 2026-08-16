@@ -15,6 +15,9 @@ import {
 import type { Place, SwipeAction, SwipeEvent, TasteGraph } from '../taste-engine';
 import { DeckContextControl } from './DeckContextControl';
 import { PlaceDetailModal } from './PlaceDetailModal';
+import { SettingsButton } from '../components/SettingsButton';
+import { Icon } from '../components/Icon';
+import { haptics } from '../haptics';
 import { radius, shadow, spacing, type Palette, type TypeRamp } from '../theme';
 import { useTheme } from '../ThemeProvider';
 
@@ -26,6 +29,8 @@ interface SwipeScreenProps {
   seed?: number;
   /** Navigates to the Want tab (Collection screen). Hidden when omitted. */
   onGoToWant?: () => void;
+  /** Opens the Settings sheet (the gear lives in this screen's header bar). */
+  onOpenSettings?: () => void;
   /** The user's saved Home snapshot (a selectable chip in the area picker), or `null`. */
   homePoint?: GeoPoint | null;
   /** Captures the device's current position as Home. */
@@ -39,6 +44,7 @@ export function SwipeScreen({
   store,
   seed,
   onGoToWant,
+  onOpenSettings,
   homePoint,
   onSetHome,
   onClearHome,
@@ -144,6 +150,7 @@ export function SwipeScreen({
 
   const handleUndo = () => {
     if (undoStack.length === 0) return;
+    haptics.selection();
     const remaining = undoStack.slice(0, -1);
     const rebuilt = remaining.reduce(updateTaste, emptyTasteGraph());
     setGraph(rebuilt);
@@ -183,14 +190,15 @@ export function SwipeScreen({
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Discover</Text>
         <Pressable
           accessibilityLabel="Change deck area"
           style={({ pressed }) => [styles.areaButton, pressed && styles.pressed]}
           onPress={() => setContextControlVisible(true)}
         >
-          <Text style={styles.areaButtonText}>📍 {radiusLabel}</Text>
+          <Icon name="location" size={13} color={colors.tint} style={styles.areaButtonIcon} />
+          <Text style={styles.areaButtonText}>{radiusLabel}</Text>
         </Pressable>
+        <SettingsButton onPress={onOpenSettings} />
       </View>
       <View style={styles.deck}>
         {!candidates && (
@@ -254,25 +262,25 @@ export function SwipeScreen({
       <View style={styles.controls}>
         <View style={styles.controlItem}>
           <Pressable
-            accessibilityLabel="Nope"
-            accessibilityHint="Not interested — swipe left"
-            style={({ pressed }) => [styles.button, styles.nope, pressed && styles.buttonPressed]}
-            onPress={() => handleButtonPress('nope')}
-          >
-            <Text style={[styles.buttonText, { color: colors.nope }]}>✕</Text>
-          </Pressable>
-          <Text style={styles.controlLabel}>Nope</Text>
-        </View>
-        <View style={styles.controlItem}>
-          <Pressable
             accessibilityLabel="Undo"
             accessibilityHint="Undo your last swipe"
             style={({ pressed }) => [styles.button, styles.undo, pressed && styles.buttonPressed]}
             onPress={handleUndo}
           >
-            <Text style={[styles.buttonText, styles.undoText]}>↺</Text>
+            <Icon name="undo" size={24} color={colors.secondaryLabel} />
           </Pressable>
           <Text style={styles.controlLabel}>Undo</Text>
+        </View>
+        <View style={styles.controlItem}>
+          <Pressable
+            accessibilityLabel="Nope"
+            accessibilityHint="Not interested — swipe left"
+            style={({ pressed }) => [styles.button, styles.nope, pressed && styles.buttonPressed]}
+            onPress={() => handleButtonPress('nope')}
+          >
+            <Icon name="nope" size={28} color={colors.nope} />
+          </Pressable>
+          <Text style={styles.controlLabel}>Nope</Text>
         </View>
         <View style={styles.controlItem}>
           <Pressable
@@ -281,7 +289,7 @@ export function SwipeScreen({
             style={({ pressed }) => [styles.button, styles.been, pressed && styles.buttonPressed]}
             onPress={() => handleButtonPress('been')}
           >
-            <Text style={[styles.buttonText, { color: colors.been }]}>✓</Text>
+            <Icon name="been" size={28} color={colors.been} />
           </Pressable>
           <Text style={styles.controlLabel}>Been</Text>
         </View>
@@ -292,7 +300,7 @@ export function SwipeScreen({
             style={({ pressed }) => [styles.button, styles.want, pressed && styles.buttonPressed]}
             onPress={() => handleButtonPress('want')}
           >
-            <Text style={[styles.buttonText, styles.wantText, { color: colors.want }]}>♥</Text>
+            <Icon name="want" size={26} color={colors.want} />
           </Pressable>
           <Text style={styles.controlLabel}>Want</Text>
         </View>
@@ -334,10 +342,7 @@ function makeStyles(colors: Palette, type: TypeRamp) {
     justifyContent: 'space-between',
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.sm,
-    paddingBottom: spacing.xs,
-  },
-  title: {
-    ...type.title1,
+    paddingBottom: spacing.sm,
   },
   areaButton: {
     flexDirection: 'row',
@@ -346,6 +351,9 @@ function makeStyles(colors: Palette, type: TypeRamp) {
     paddingHorizontal: spacing.md,
     borderRadius: radius.pill,
     backgroundColor: colors.fill,
+  },
+  areaButtonIcon: {
+    marginRight: spacing.xs,
   },
   areaButtonText: {
     ...type.footnote,
@@ -423,10 +431,11 @@ function makeStyles(colors: Palette, type: TypeRamp) {
   },
   controls: {
     flexDirection: 'row',
-    justifyContent: 'space-evenly',
+    justifyContent: 'center',
     alignItems: 'flex-start',
+    gap: spacing.xl,
     paddingTop: spacing.md,
-    paddingBottom: spacing.xl,
+    paddingBottom: spacing.lg,
   },
   controlItem: {
     alignItems: 'center',
@@ -453,7 +462,7 @@ function makeStyles(colors: Palette, type: TypeRamp) {
   nope: {},
   been: {},
   want: {},
-  undo: { width: 48, height: 48 },
+  undo: { backgroundColor: colors.fill, shadowColor: 'transparent', elevation: 0, boxShadow: 'none' },
   buttonText: {
     fontSize: 26,
     fontWeight: '600',

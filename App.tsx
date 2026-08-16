@@ -1,10 +1,13 @@
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AppShell } from './src/components/AppShell';
+import { Icon } from './src/components/Icon';
 import { migrateLocalDataToCloud } from './src/auth/migrateToCloud';
 import { isRealBackendConfigured, loadConfig } from './src/config/env';
+import { haptics } from './src/haptics';
+import { spring, useReducedMotion } from './src/motion';
 import { SupabaseAppleAuthProvider } from './src/providers/appleAuth';
 import { FixturePlacesProvider, NoopEnrichmentProvider } from './src/providers/inMemory';
 import { LocalStore } from './src/providers/localStore';
@@ -127,6 +130,30 @@ function AppContent() {
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [homePoint, setHomePoint] = useState<GeoPoint | null>(null);
 
+  const reducedMotion = useReducedMotion();
+  const swipeTabScale = useRef(new Animated.Value(1)).current;
+  const collectionTabScale = useRef(new Animated.Value(1)).current;
+
+  // Springs the newly-active tab's icon up and gently back down when the
+  // selection changes, and snaps the previously-active one back to rest.
+  useEffect(() => {
+    const active = activeTab === 'swipe' ? swipeTabScale : collectionTabScale;
+    const inactive = activeTab === 'swipe' ? collectionTabScale : swipeTabScale;
+
+    if (reducedMotion) {
+      active.setValue(1);
+      inactive.setValue(1);
+      return;
+    }
+
+    active.setValue(1);
+    Animated.sequence([
+      Animated.spring(active, { toValue: 1.12, useNativeDriver: true, ...spring.snappy }),
+      Animated.spring(active, { toValue: 1, useNativeDriver: true, ...spring.snappy }),
+    ]).start();
+    Animated.spring(inactive, { toValue: 1, useNativeDriver: true, ...spring.snappy }).start();
+  }, [activeTab, reducedMotion, swipeTabScale, collectionTabScale]);
+
   // Restores the persisted onboarding flag on cold start so a returning user
   // lands straight on the deck instead of re-running the "been" grid.
   useEffect(() => {
@@ -173,6 +200,7 @@ function AppContent() {
   const store = session && cloudStore ? cloudStore : localStore;
 
   const handleTabChange = (tab: 'swipe' | 'collection') => {
+    if (tab !== activeTab) haptics.selection();
     const leavingFirstSwipeSession = tab === 'collection' && activeTab === 'swipe';
     setActiveTab(tab);
     if (leavingFirstSwipeSession && !session && authProvider && !hasPromptedThisRun) {
@@ -282,6 +310,7 @@ function AppContent() {
                 enrichmentProvider={enrichmentProvider}
                 store={store}
                 onGoToWant={() => setActiveTab('collection')}
+                onOpenSettings={() => setSettingsVisible(true)}
                 homePoint={homePoint}
                 onSetHome={handleSetHome}
                 onClearHome={handleClearHome}
@@ -292,20 +321,9 @@ function AppContent() {
                 canSignIn={authProvider !== null}
                 signedIn={session !== null}
                 onRequestSignIn={() => setSignInPromptVisible(true)}
+                onOpenSettings={() => setSettingsVisible(true)}
               />
             )}
-            {/* Floating gear -- reachable from both screens. Kept as an overlay
-                (rather than a header on each screen) so the full-bleed Discover
-                deck doesn't lose vertical space to a chrome bar. */}
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Open settings"
-              hitSlop={8}
-              style={styles.gear}
-              onPress={() => setSettingsVisible(true)}
-            >
-              <Text style={styles.gearIcon}>⚙️</Text>
-            </Pressable>
           </View>
           <View style={styles.tabBar}>
             <Pressable
@@ -315,7 +333,13 @@ function AppContent() {
               style={styles.tabBarButton}
               onPress={() => handleTabChange('swipe')}
             >
-              <Text style={[styles.tabBarIcon, activeTab === 'swipe' && styles.tabBarActive]}>🍴</Text>
+              <Animated.View style={{ transform: [{ scale: swipeTabScale }] }}>
+                <Icon
+                  name={activeTab === 'swipe' ? 'discover-active' : 'discover'}
+                  size={22}
+                  color={activeTab === 'swipe' ? colors.tint : colors.secondaryLabel}
+                />
+              </Animated.View>
               <Text style={[styles.tabBarLabel, activeTab === 'swipe' && styles.tabBarActive]}>
                 Discover
               </Text>
@@ -327,7 +351,13 @@ function AppContent() {
               style={styles.tabBarButton}
               onPress={() => handleTabChange('collection')}
             >
-              <Text style={[styles.tabBarIcon, activeTab === 'collection' && styles.tabBarActive]}>🗺️</Text>
+              <Animated.View style={{ transform: [{ scale: collectionTabScale }] }}>
+                <Icon
+                  name={activeTab === 'collection' ? 'collection-active' : 'collection'}
+                  size={22}
+                  color={activeTab === 'collection' ? colors.tint : colors.secondaryLabel}
+                />
+              </Animated.View>
               <Text style={[styles.tabBarLabel, activeTab === 'collection' && styles.tabBarActive]}>
                 Collection
               </Text>
@@ -376,20 +406,6 @@ function makeStyles(colors: Palette, type: TypeRamp) {
     screen: {
       flex: 1,
     },
-    gear: {
-      position: 'absolute',
-      top: spacing.sm,
-      right: spacing.md,
-      width: 36,
-      height: 36,
-      borderRadius: 18,
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: colors.fill,
-    },
-    gearIcon: {
-      fontSize: 18,
-    },
     tabBar: {
       flexDirection: 'row',
       borderTopWidth: StyleSheet.hairlineWidth,
@@ -405,10 +421,6 @@ function makeStyles(colors: Palette, type: TypeRamp) {
       flex: 1,
       alignItems: 'center',
       gap: 2,
-    },
-    tabBarIcon: {
-      fontSize: 22,
-      opacity: 0.35,
     },
     tabBarLabel: {
       ...type.caption2,
