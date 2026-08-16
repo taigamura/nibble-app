@@ -1,6 +1,6 @@
 import React from 'react';
 import TestRenderer, { act, type ReactTestRenderer } from 'react-test-renderer';
-import { Text } from 'react-native';
+import { Image, Text, View } from 'react-native';
 
 import { Card } from '../Card';
 import { colors } from '../../theme';
@@ -72,5 +72,57 @@ describe('Card swipe guides (design)', () => {
       (node) => typeof node.props.testID === 'string' && node.props.testID.startsWith('guide-')
     );
     expect(guides).toHaveLength(0);
+  });
+});
+
+describe('Card photo gallery (design)', () => {
+  const gallery: Place = {
+    ...place,
+    photoUrls: [
+      'https://example.com/1.jpg',
+      'https://example.com/2.jpg',
+      'https://example.com/3.jpg',
+    ],
+  };
+
+  it('shows one indicator segment per photo only on the interactive card', () => {
+    const interactive = render(<Card place={gallery} onSwiped={() => {}} onInfoPress={() => {}} />);
+    const indicator = interactive.root.findByProps({ testID: 'photo-indicator-p1' });
+    // The container itself is a View; each segment is a child View, so subtract 1.
+    expect(indicator.findAllByType(View).length - 1).toBe(gallery.photoUrls!.length);
+
+    const behind = render(<Card place={gallery} onSwiped={() => {}} />);
+    expect(
+      behind.root.findAll((n) => n.props.testID === 'photo-indicator-p1')
+    ).toHaveLength(0);
+  });
+
+  it('pages to the next photo when the right tap zone is pressed', () => {
+    const renderer = render(<Card place={gallery} onSwiped={() => {}} onInfoPress={() => {}} />);
+    const image = () =>
+      renderer.root.findAllByType(Image).find((n) => typeof n.props.source?.uri === 'string')!;
+
+    expect(image().props.source.uri).toBe(gallery.photoUrls![0]);
+    act(() => {
+      renderer.root.findByProps({ testID: 'photo-next-p1' }).props.onPress();
+    });
+    expect(image().props.source.uri).toBe(gallery.photoUrls![1]);
+  });
+
+  it('wraps from the first photo back to the last when paging previous', () => {
+    const renderer = render(<Card place={gallery} onSwiped={() => {}} onInfoPress={() => {}} />);
+    const image = () =>
+      renderer.root.findAllByType(Image).find((n) => typeof n.props.source?.uri === 'string')!;
+
+    act(() => {
+      renderer.root.findByProps({ testID: 'photo-prev-p1' }).props.onPress();
+    });
+    expect(image().props.source.uri).toBe(gallery.photoUrls![gallery.photoUrls!.length - 1]);
+  });
+
+  it('shows no paging controls for a single-photo place', () => {
+    const renderer = render(<Card place={place} onSwiped={() => {}} onInfoPress={() => {}} />);
+    expect(renderer.root.findAll((n) => n.props.testID === 'photo-indicator-p1')).toHaveLength(0);
+    expect(renderer.root.findAll((n) => n.props.testID === 'photo-next-p1')).toHaveLength(0);
   });
 });

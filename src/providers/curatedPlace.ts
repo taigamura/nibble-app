@@ -18,8 +18,21 @@ export interface CuratedPlaceRow {
   lat: number;
   lng: number;
   photo_reference: string | null;
+  /**
+   * Ordered gallery of Google photo references (hero first) powering the swipe
+   * card's multi-photo carousel. `photo_reference` stays as the first element
+   * for readers that only want one image; older rows written before this
+   * column existed have `[]` here and fall back to `photo_reference`.
+   * Optional at the type level because a row read from the DB before the
+   * backfill ran can arrive without the field; `toPlace` degrades gracefully.
+   */
+  photo_references?: string[];
   refreshed_at: string;
 }
+
+/** Max gallery photos surfaced per place -- enough to recognize a spot, few
+ * enough to page through without fatigue (and to bound photo-media requests). */
+export const MAX_GALLERY_PHOTOS = 5;
 
 export type { GeoPoint } from './types';
 
@@ -51,6 +64,15 @@ const FALLBACK_PHOTO_URL = 'https://picsum.photos/seed/nibble-placeholder/600/80
 
 /** Maps a curated DB row + the viewer's location into the taste-engine's Place shape. */
 export function toPlace(row: CuratedPlaceRow, userLocation: GeoPoint, googlePlacesApiKey: string): Place {
+  // Prefer the gallery column; fall back to the legacy single reference for
+  // rows written before `photo_references` existed. Dedupe (the hero often
+  // repeats as element 0) and cap so we never over-fetch photo media.
+  const references = (row.photo_references?.length ? row.photo_references : [row.photo_reference])
+    .filter((ref): ref is string => Boolean(ref));
+  const photoUrls = Array.from(new Set(references))
+    .slice(0, MAX_GALLERY_PHOTOS)
+    .map((ref) => buildPhotoUrl(ref, googlePlacesApiKey));
+
   return {
     id: row.place_id,
     name: row.name,
@@ -61,9 +83,8 @@ export function toPlace(row: CuratedPlaceRow, userLocation: GeoPoint, googlePlac
     distanceMeters: Math.round(haversineMeters(userLocation, { lat: row.lat, lng: row.lng })),
     lat: row.lat,
     lng: row.lng,
-    photoUrl: row.photo_reference
-      ? buildPhotoUrl(row.photo_reference, googlePlacesApiKey)
-      : FALLBACK_PHOTO_URL,
+    photoUrl: photoUrls[0] ?? FALLBACK_PHOTO_URL,
+    photoUrls: photoUrls.length > 0 ? photoUrls : [FALLBACK_PHOTO_URL],
   };
 }
 

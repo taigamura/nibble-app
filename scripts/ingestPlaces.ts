@@ -14,24 +14,57 @@
  * --force to refresh everything regardless of age.
  */
 import type { CuratedPlaceRow, GeoPoint } from '../src/providers/curatedPlace';
-import { needsRefresh } from '../src/providers/curatedPlace';
+import { MAX_GALLERY_PHOTOS, needsRefresh } from '../src/providers/curatedPlace';
 import type { PriceBand } from '../src/taste-engine';
 
 /**
- * Seed points covering the Kinshicho-Sumida belt around the default deck
- * center (App.tsx DEFAULT_LOCATION). These line up with the re-center presets
- * in src/config/areas.ts so every preset area has curated places behind it.
+ * The Kinshicho-Sumida beachhead as a bounding box that encloses every
+ * re-center preset in src/config/areas.ts (Kinshicho, Kameido, Ryogoku,
+ * Oshiage, Sumiyoshi) with a small margin. We tile this box with a grid of
+ * overlapping search circles (see `buildSeedGrid`) instead of a handful of
+ * hand-placed points. Nearby Search caps each call at 20 results, so a few
+ * wide circles over a dense area only ever return the 20 most prominent places
+ * per circle -- small independent spots never make the cut. More, tighter,
+ * overlapping circles sample the core from several directions and surface that
+ * long tail. `runIngest` dedupes places seen from multiple circles, so the
+ * overlap costs nothing but API calls.
  */
-export const SEED_POINTS: GeoPoint[] = [
-  { lat: 35.6956, lng: 139.8124 }, // Home / Kinshicho (default deck center)
-  { lat: 35.6976, lng: 139.8267 }, // Kameido
-  { lat: 35.6958, lng: 139.7933 }, // Ryogoku
-  { lat: 35.7101, lng: 139.8107 }, // Oshiage / Skytree
-  { lat: 35.6839, lng: 139.8175 }, // Sumiyoshi
-];
+const BEACHHEAD_BOUNDS = {
+  minLat: 35.681,
+  maxLat: 35.712,
+  minLng: 139.791,
+  maxLng: 139.828,
+} as const;
 
-const INGEST_RADIUS_METERS = 1500;
-const INCLUDED_TYPES = ['cafe', 'restaurant'];
+// Grid step in degrees, ~600m at this latitude (~35.7degN): 600/111_000 for
+// latitude, 600/(111_320 * cos 35.7deg) for longitude. Paired with an 800m
+// search radius so adjacent circles overlap and no place falls between them.
+const GRID_STEP_LAT = 0.0054;
+const GRID_STEP_LNG = 0.0066;
+const INGEST_RADIUS_METERS = 800;
+
+/**
+ * Tiles a bounding box with an evenly spaced grid of points, inclusive of both
+ * edges. Pure and deterministic so it's unit-testable. The caller pairs each
+ * point with `INGEST_RADIUS_METERS`; the resulting overlap between circles is
+ * intentional (see `BEACHHEAD_BOUNDS`).
+ */
+export function buildSeedGrid(
+  bounds: { minLat: number; maxLat: number; minLng: number; maxLng: number },
+  stepLat: number,
+  stepLng: number,
+): GeoPoint[] {
+  const points: GeoPoint[] = [];
+  // A tiny epsilon keeps the top/right edge in despite float accumulation.
+  for (let lat = bounds.minLat; lat <= bounds.maxLat + 1e-9; lat += stepLat) {
+    for (let lng = bounds.minLng; lng <= bounds.maxLng + 1e-9; lng += stepLng) {
+      points.push({ lat: Number(lat.toFixed(6)), lng: Number(lng.toFixed(6)) });
+    }
+  }
+  return points;
+}
+
+export const SEED_POINTS: GeoPoint[] = buildSeedGrid(BEACHHEAD_BOUNDS, GRID_STEP_LAT, GRID_STEP_LNG);
 
 /**
  * Google's `searchNearby` `includedTypes` filter admits any place that
@@ -75,9 +108,20 @@ const FOOD_PRIMARY_TYPES = new Set([
 ]);
 
 /**
+ * The `includedTypes` we ask Nearby Search for. Deriving it from
+ * FOOD_PRIMARY_TYPES keeps the fetch net and the keep filter
+ * (`isFoodPrimaryType`) in lockstep. Previously the fetch asked only for
+ * `cafe`/`restaurant`, so dessert shops, coffee shops (kissaten), bakeries,
+ * and bars -- all of which we happily *keep* -- were dropped by Google before
+ * our code ever saw them. `restaurant` already matches every `*_restaurant`
+ * subtype (they carry the generic type too), so this concrete list suffices.
+ */
+const INCLUDED_TYPES = Array.from(FOOD_PRIMARY_TYPES);
+
+/**
  * True when a Google `primaryType` is a food-and-drink establishment we want
  * on the deck. A missing primaryType is kept: the place already matched the
- * cafe/restaurant `includedTypes` filter, Google just didn't classify it.
+ * food-type `includedTypes` filter, Google just didn't classify it.
  */
 export function isFoodPrimaryType(primaryType: string | undefined): boolean {
   if (!primaryType) return true;
@@ -120,6 +164,13 @@ export function mapGoogleResultToRow(
   if (!result.displayName?.text || !result.location) return null;
   if (!isFoodPrimaryType(result.primaryType)) return null;
 
+  // Keep several photo references so the card can show a small gallery; the
+  // first doubles as the legacy single `photo_reference` for one-image readers.
+  const photoReferences = (result.photos ?? [])
+    .map((photo) => photo.name)
+    .filter((name): name is string => Boolean(name))
+    .slice(0, MAX_GALLERY_PHOTOS);
+
   return {
     place_id: result.id,
     name: result.displayName.text,
@@ -129,7 +180,8 @@ export function mapGoogleResultToRow(
     rating: result.rating ?? 0,
     lat: result.location.latitude,
     lng: result.location.longitude,
-    photo_reference: result.photos?.[0]?.name ?? null,
+    photo_reference: photoReferences[0] ?? null,
+    photo_references: photoReferences,
     refreshed_at: now.toISOString(),
   };
 }
@@ -150,6 +202,11 @@ async function searchNearby(
     body: JSON.stringify({
       includedTypes: INCLUDED_TYPES,
       maxResultCount: 20,
+      // Ask for the *nearest* 20 rather than the most prominent 20 (the
+      // default): in a dense core, popularity ranking buries small independent
+      // spots behind chains, while distance ranking (paired with the tight
+      // grid of circles) surfaces what's actually next to each seed point.
+      rankPreference: 'DISTANCE',
       locationRestriction: {
         circle: {
           center: { latitude: point.lat, longitude: point.lng },
@@ -210,7 +267,13 @@ async function upsertRows(
   });
 
   if (!response.ok) {
-    throw new Error(`Supabase places upsert failed with status ${response.status}`);
+    // Surface PostgREST's error body -- it names the offending column/constraint
+    // (e.g. a missing `photo_references` column when supabase/schema.sql hasn't
+    // been applied), which a bare status code hides.
+    const detail = await response.text().catch(() => '');
+    throw new Error(
+      `Supabase places upsert failed with status ${response.status}${detail ? `: ${detail}` : ''}`,
+    );
   }
 }
 

@@ -57,6 +57,33 @@ describe('toPlace', () => {
     const place = toPlace(row({ photo_reference: null }), { lat: 35.6595, lng: 139.7005 }, 'test-key');
     expect(place.photoUrl).not.toContain('places.googleapis.com');
   });
+
+  it('builds a deduped, capped gallery from photo_references (hero first)', () => {
+    const place = toPlace(
+      row({
+        photo_reference: 'places/g123/photos/a',
+        photo_references: [
+          'places/g123/photos/a',
+          'places/g123/photos/a', // duplicate hero -> collapsed
+          'places/g123/photos/b',
+          'places/g123/photos/c',
+          'places/g123/photos/d',
+          'places/g123/photos/e',
+          'places/g123/photos/f', // 6th distinct -> dropped by the cap of 5
+        ],
+      }),
+      { lat: 35.6595, lng: 139.7005 },
+      'test-key',
+    );
+    expect(place.photoUrls).toHaveLength(5);
+    expect(place.photoUrls?.[0]).toBe(place.photoUrl);
+    expect(place.photoUrls?.every((url) => url.includes('places.googleapis.com'))).toBe(true);
+  });
+
+  it('falls back to the legacy single reference for rows without a gallery column', () => {
+    const place = toPlace(row({ photo_references: undefined }), { lat: 35.6595, lng: 139.7005 }, 'test-key');
+    expect(place.photoUrls).toEqual([place.photoUrl]);
+  });
 });
 
 describe('needsRefresh', () => {

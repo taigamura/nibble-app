@@ -6,7 +6,7 @@ import type { Place } from '../taste-engine';
  * are approximate real central-Tokyo locations so the collection map view
  * has something plausible to plot in fixture/dev mode.
  */
-export const FIXTURE_PLACES: Place[] = [
+const FIXTURE_PLACES_RAW: Place[] = [
   {
     id: 'p1',
     name: 'Fuunji',
@@ -128,3 +128,18 @@ export const FIXTURE_PLACES: Place[] = [
     lng: 139.7010,
   },
 ];
+
+/**
+ * Give each fixture a small gallery so the swipe card's multi-photo carousel
+ * is exercisable without real Google data. Picsum serves a distinct image per
+ * seed, so `<id>-2` / `<id>-3` stand in for "more angles of the same place".
+ * The hero (`photoUrl`) stays first so single-image surfaces are unchanged.
+ */
+export const FIXTURE_PLACES: Place[] = FIXTURE_PLACES_RAW.map((place) => ({
+  ...place,
+  photoUrls: [
+    place.photoUrl,
+    `https://picsum.photos/seed/${place.id}-2/600/800`,
+    `https://picsum.photos/seed/${place.id}-3/600/800`,
+  ],
+}));

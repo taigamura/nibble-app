@@ -1,4 +1,4 @@
-import React, { forwardRef, useImperativeHandle, useRef } from 'react';
+import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { Animated, Image, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { Place, SwipeAction } from '../taste-engine';
@@ -6,6 +6,16 @@ import { colors, radius, shadow, spacing, type } from '../theme';
 
 const SWIPE_THRESHOLD = 120;
 const OFF_SCREEN_DISTANCE = 600;
+
+/** Ordered gallery for a place: the explicit list when present, else the lone
+ * hero. Blank/duplicate entries are dropped so the indicator segment count
+ * always matches what the user can actually page to. */
+function galleryFor(place: Place): string[] {
+  const urls = place.photoUrls?.length ? place.photoUrls : [place.photoUrl];
+  const seen = new Set<string>();
+  const cleaned = urls.filter((url) => url && !seen.has(url) && (seen.add(url), true));
+  return cleaned.length > 0 ? cleaned : [place.photoUrl];
+}
 
 export interface CardHandle {
   /** Plays the fly-off animation for a tap-button action, then fires onSwiped. */
@@ -39,6 +49,30 @@ function targetFor(action: SwipeAction): { x: number; y: number } {
 
 export const Card = forwardRef<CardHandle, CardProps>(({ place, onSwiped, onInfoPress }, ref) => {
   const position = useRef(new Animated.ValueXY()).current;
+
+  // Multi-photo gallery: one image is shown at a time (never crammed), and the
+  // user taps the left/right of the photo to page through. Only the top
+  // (interactive) card pages; the card behind stays on its hero frame.
+  const photos = galleryFor(place);
+  const [photoIndex, setPhotoIndex] = useState(0);
+  const showGallery = onInfoPress != null && photos.length > 1;
+  const step = (delta: number) =>
+    setPhotoIndex((current) => (current + delta + photos.length) % photos.length);
+
+  // Warm the adjacent frames so paging doesn't flash a blank while the next
+  // photo downloads. Cheap and idempotent -- Image.prefetch dedupes by URL.
+  useEffect(() => {
+    if (!showGallery) return;
+    const warm = (uri: string) => {
+      try {
+        Image.prefetch?.(uri)?.catch?.(() => {});
+      } catch {
+        // Image.prefetch is a no-op on some platforms/test envs; ignore.
+      }
+    };
+    warm(photos[(photoIndex + 1) % photos.length]);
+    warm(photos[(photoIndex - 1 + photos.length) % photos.length]);
+  }, [photoIndex, showGallery, photos]);
 
   // The PanResponder below is created once (via useRef) and its handlers
   // close over whatever `flyOut` existed at that first render. Routing the
@@ -116,7 +150,39 @@ export const Card = forwardRef<CardHandle, CardProps>(({ place, onSwiped, onInfo
         { transform: [...position.getTranslateTransform(), { rotate }] },
       ]}
     >
-      <Image source={{ uri: place.photoUrl }} style={styles.photo} />
+      <Image source={{ uri: photos[photoIndex] }} style={styles.photo} />
+      {showGallery && (
+        <>
+          {/* Instagram-style segmented indicator: one segment per photo, the
+              current one brightened. Non-interactive; paging happens via the
+              tap zones below. */}
+          <View
+            testID={`photo-indicator-${place.id}`}
+            style={[styles.indicator, { pointerEvents: 'none' }]}
+          >
+            {photos.map((url, i) => (
+              <View
+                key={url}
+                style={[styles.indicatorSegment, i === photoIndex && styles.indicatorSegmentActive]}
+              />
+            ))}
+          </View>
+          {/* Tap the left third to go back, the right third to advance. The
+              center is left inert so a mis-tap while reading doesn't page. */}
+          <Pressable
+            testID={`photo-prev-${place.id}`}
+            accessibilityLabel="Previous photo"
+            style={[styles.tapZone, styles.tapZonePrev]}
+            onPress={() => step(-1)}
+          />
+          <Pressable
+            testID={`photo-next-${place.id}`}
+            accessibilityLabel="Next photo"
+            style={[styles.tapZone, styles.tapZoneNext]}
+            onPress={() => step(1)}
+          />
+        </>
+      )}
       {onInfoPress && (
         <>
           <Animated.View
@@ -177,6 +243,38 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '78%',
     backgroundColor: colors.fill,
+  },
+  indicator: {
+    position: 'absolute',
+    top: spacing.sm,
+    left: spacing.md,
+    right: spacing.md,
+    flexDirection: 'row',
+    gap: spacing.xs,
+  },
+  indicatorSegment: {
+    flex: 1,
+    height: 3,
+    borderRadius: radius.pill,
+    backgroundColor: 'rgba(255,255,255,0.4)',
+  },
+  indicatorSegmentActive: {
+    backgroundColor: colors.labelOnColor,
+  },
+  // Invisible paging targets over the photo. The center third is intentionally
+  // left uncovered so it stays available for the drag gesture and reads as
+  // "not a button". Height matches the photo (78% of the card).
+  tapZone: {
+    position: 'absolute',
+    top: 0,
+    height: '78%',
+    width: '33%',
+  },
+  tapZonePrev: {
+    left: 0,
+  },
+  tapZoneNext: {
+    right: 0,
   },
   guide: {
     position: 'absolute',

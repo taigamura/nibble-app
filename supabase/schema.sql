@@ -14,9 +14,16 @@ create table if not exists places (
   lat double precision not null,
   lng double precision not null,
   photo_reference text,
+  -- Ordered gallery of Google photo references (hero first) powering the swipe
+  -- card's multi-photo carousel. `photo_reference` remains the first element
+  -- for one-image readers; refreshed on the same <=30-day Google TOS cycle.
+  photo_references jsonb not null default '[]'::jsonb,
   refreshed_at timestamptz not null default now(),
   created_at timestamptz not null default now()
 );
+
+-- Backfill the column on tables created before the gallery existed.
+alter table places add column if not exists photo_references jsonb not null default '[]'::jsonb;
 
 create index if not exists places_lat_lng_idx on places (lat, lng);
 

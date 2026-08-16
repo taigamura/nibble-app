@@ -15,7 +15,17 @@ export interface Place {
   priceBand: PriceBand;
   rating: number;
   distanceMeters: number;
+  /** Primary hero photo. Used everywhere a single image is shown (collection
+   * row, detail modal, onboarding tile) and as the first frame of the swipe
+   * card's gallery. Always present, even when `photoUrls` is empty. */
   photoUrl: string;
+  /**
+   * Optional ordered gallery (hero first) shown as a tap-to-page carousel on
+   * the swipe card, so a place is recognizable from more than one angle. When
+   * absent or single-element, the card just shows `photoUrl`. Curated rows
+   * carry several; hand-authored fixtures may carry one.
+   */
+  photoUrls?: string[];
   /**
    * Optional coordinates, present when the source provider has real geo data
    * (curated DB rows always do; hand-authored fixtures may omit them). The
