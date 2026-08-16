@@ -1,9 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Image, Linking, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { rankTonight } from '../collection/tonight';
+import { applyAnswer, nextQuestion, type DrillAxis } from '../collection/tonightDrilldown';
 import type { Place, TasteVector } from '../taste-engine';
-import { whySurfaced } from '../taste-engine';
+import { seededShuffle, whySurfaced } from '../taste-engine';
 import { radius, shadow, spacing, type Palette, type TypeRamp } from '../theme';
 import { useTheme } from '../ThemeProvider';
 import { buildMapUrl } from './googleMapsLinks';
@@ -15,42 +16,171 @@ interface TonightSheetProps {
   /** Taste vector, used to break distance ties and explain the pick. */
   vector: TasteVector;
   onClose: () => void;
+  /** Injected seed for the 🎲 randomizer. Defaults to a per-session value. */
+  seed?: number;
+}
+
+const AXIS_QUESTION: Record<DrillAxis, string> = {
+  cuisine: 'What do you want to eat?',
+  price: 'What price range?',
+  vibe: 'What kind of vibe?',
+};
+
+/** One answered drill step; `value: null` means the user picked "Any". */
+interface Answer {
+  axis: DrillAxis;
+  value: string | null;
 }
 
 /**
- * "Where should I go tonight?" -- collapses the Want list down to a single
- * actionable pick (nearest first, taste-broken), reusing the app's swipe
- * metaphor: "Not tonight" walks outward to the next spot, "Let's go" hands
- * off to directions. Not a random shuffle; it's a decision shortcut.
+ * "Where should I go tonight?" -- an adaptive drill-down over the Want list.
+ * Walks cuisine -> price -> vibe, asking only about axes the remaining pool
+ * can still be split on, and stops as soon as it's down to a handful (or the
+ * ladder runs out) to hand off to the same nearest-first result card as
+ * before. A 🎲 shortcut is available at any step for a uniformly random pick
+ * from whatever remains, seeded so "another" re-rolls deterministically.
+ * Never mutates the taste graph -- it only ever reads `wantPlaces`/`vector`.
  */
-export function TonightSheet({ visible, wantPlaces, vector, onClose }: TonightSheetProps) {
+export function TonightSheet({ visible, wantPlaces, vector, onClose, seed }: TonightSheetProps) {
   const { colors, type } = useTheme();
   const styles = useMemo(() => makeStyles(colors, type), [colors, type]);
-  const [index, setIndex] = useState(0);
-  const ranked = rankTonight(wantPlaces, vector);
+  const sessionSeed = useRef(seed ?? Date.now()).current;
 
-  // Start from the closest pick every time the sheet is reopened.
+  const [mode, setMode] = useState<'drill' | 'result' | 'random'>('drill');
+  const [answers, setAnswers] = useState<Answer[]>([]);
+  const [resultIndex, setResultIndex] = useState(0);
+  const [rerollCount, setRerollCount] = useState(0);
+
+  // Reset the whole drill every time the sheet is reopened.
   useEffect(() => {
-    if (visible) setIndex(0);
+    if (visible) {
+      setMode('drill');
+      setAnswers([]);
+      setResultIndex(0);
+      setRerollCount(0);
+    }
   }, [visible]);
 
-  const pick = ranked[index];
+  // `remaining` is fully derived from wantPlaces + the answers applied so
+  // far, so Back (popping an answer) recomputes it for free.
+  const remaining = useMemo(() => {
+    let pool = wantPlaces;
+    for (const answer of answers) {
+      if (answer.value !== null) {
+        pool = applyAnswer(pool, answer.axis, answer.value);
+      }
+    }
+    return pool;
+  }, [wantPlaces, answers]);
+
+  const askedAxes = answers.map((a) => a.axis);
+  const question = mode === 'drill' ? nextQuestion(remaining, askedAxes) : null;
+
+  // Drill exhausted (or STOP_AT reached) -- move to the result view.
+  useEffect(() => {
+    if (mode === 'drill' && !question) {
+      setMode('result');
+    }
+  }, [mode, question]);
+
+  const ranked = useMemo(() => rankTonight(remaining, vector), [remaining, vector]);
+  const drillPick = ranked[resultIndex];
+
+  const randomPool = mode === 'random' ? remaining : [];
+  const randomPick =
+    mode === 'random' && randomPool.length > 0
+      ? seededShuffle(randomPool, sessionSeed + rerollCount)[0]
+      : undefined;
+
+  const pick = mode === 'random' ? randomPick : drillPick;
   const reason = pick ? whySurfaced(vector, pick) : undefined;
-  const isLast = index >= ranked.length - 1;
+  const isLast = mode === 'random' ? remaining.length <= 1 : resultIndex >= ranked.length - 1;
+
+  const handleAnswer = (axis: DrillAxis, value: string | null) => {
+    setAnswers((prev) => [...prev, { axis, value }]);
+  };
+
+  const handleBack = () => {
+    setAnswers((prev) => prev.slice(0, -1));
+    setMode('drill');
+  };
+
+  const handleStartOver = () => {
+    setMode('drill');
+    setAnswers([]);
+    setResultIndex(0);
+    setRerollCount(0);
+  };
+
+  const handleRandomPick = () => {
+    setMode('random');
+    setRerollCount(0);
+  };
+
+  const handleAnother = () => {
+    if (mode === 'random') {
+      setRerollCount((n) => n + 1);
+    } else {
+      setResultIndex((i) => i + 1);
+    }
+  };
+
+  const canGoBack = mode !== 'random' && answers.length > 0;
+  const showRandomizer = mode === 'drill';
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.backdrop}>
         <View style={styles.sheet}>
           <View style={styles.grabber} />
-          <Text style={styles.title}>Where to tonight?</Text>
+          <View style={styles.header}>
+            <Text style={styles.title}>Where to tonight?</Text>
+            {showRandomizer && (
+              <Pressable accessibilityLabel="Just pick for me" onPress={handleRandomPick}>
+                <Text style={styles.randomLink}>just pick for me 🎲</Text>
+              </Pressable>
+            )}
+          </View>
 
-          {!pick ? (
+          {wantPlaces.length === 0 ? (
             <View style={styles.empty}>
               <Text style={styles.emptyText}>
-                {wantPlaces.length === 0
-                  ? 'Swipe right on a few places first, then I can pick one for you.'
-                  : "That's every Want spot for now. Swipe more to get fresh ideas."}
+                Swipe right on a few places first, then I can pick one for you.
+              </Text>
+            </View>
+          ) : mode === 'drill' && question ? (
+            <>
+              <Text style={styles.question}>{AXIS_QUESTION[question.axis]}</Text>
+              <View style={styles.chipRow}>
+                {question.options.map((value) => (
+                  <Pressable
+                    key={value}
+                    accessibilityLabel={`Choose ${value}`}
+                    style={styles.chip}
+                    onPress={() => handleAnswer(question.axis, value)}
+                  >
+                    <Text style={styles.chipText}>{value}</Text>
+                  </Pressable>
+                ))}
+                <Pressable
+                  accessibilityLabel="No preference"
+                  style={[styles.chip, styles.chipAny]}
+                  onPress={() => handleAnswer(question.axis, null)}
+                >
+                  <Text style={styles.chipText}>Any</Text>
+                </Pressable>
+              </View>
+
+              {canGoBack && (
+                <Pressable accessibilityLabel="Back" style={styles.textButton} onPress={handleBack}>
+                  <Text style={styles.textButtonText}>Back</Text>
+                </Pressable>
+              )}
+            </>
+          ) : !pick ? (
+            <View style={styles.empty}>
+              <Text style={styles.emptyText}>
+                That&apos;s every Want spot for now. Swipe more to get fresh ideas.
               </Text>
             </View>
           ) : (
@@ -77,12 +207,25 @@ export function TonightSheet({ visible, wantPlaces, vector, onClose }: TonightSh
                 accessibilityLabel="Not tonight, suggest another"
                 accessibilityState={{ disabled: isLast }}
                 style={[styles.button, styles.next, isLast && styles.buttonDisabled]}
-                onPress={() => !isLast && setIndex((i) => i + 1)}
+                onPress={() => !isLast && handleAnother()}
               >
                 <Text style={styles.buttonText}>
                   {isLast ? 'No more nearby' : 'Not tonight -- another'}
                 </Text>
               </Pressable>
+
+              <View style={styles.footerRow}>
+                {canGoBack && (
+                  <Pressable accessibilityLabel="Back" style={styles.textButton} onPress={handleBack}>
+                    <Text style={styles.textButtonText}>Back</Text>
+                  </Pressable>
+                )}
+                {(answers.length > 0 || mode === 'random') && (
+                  <Pressable accessibilityLabel="Start over" style={styles.textButton} onPress={handleStartOver}>
+                    <Text style={styles.textButtonText}>Start over</Text>
+                  </Pressable>
+                )}
+              </View>
             </>
           )}
 
@@ -118,9 +261,56 @@ function makeStyles(colors: Palette, type: TypeRamp) {
     backgroundColor: colors.separator,
     marginBottom: spacing.md,
   },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.lg,
+  },
   title: {
     ...type.title2,
-    marginBottom: spacing.lg,
+  },
+  randomLink: {
+    ...type.footnote,
+    color: colors.tint,
+  },
+  question: {
+    ...type.headline,
+    marginBottom: spacing.md,
+  },
+  chipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  chip: {
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.separator,
+    backgroundColor: colors.fill,
+  },
+  chipAny: {
+    borderColor: colors.tint,
+  },
+  chipText: {
+    ...type.subheadline,
+    color: colors.label,
+  },
+  textButton: {
+    paddingVertical: spacing.sm,
+    alignItems: 'center',
+  },
+  footerRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: spacing.lg,
+  },
+  textButtonText: {
+    ...type.subheadline,
+    color: colors.secondaryLabel,
   },
   empty: {
     paddingVertical: spacing.xxl,
