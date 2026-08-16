@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { seedBeenSignals } from '../onboarding/seedBeenSignals';
 import type { PlacesProvider, Store } from '../providers/types';
 import type { Place } from '../taste-engine';
-import { colors, radius, shadow, spacing, type } from '../theme';
+import { radius, shadow, spacing, type Palette, type TypeRamp } from '../theme';
+import { useTheme } from '../ThemeProvider';
 
 interface OnboardingScreenProps {
   placesProvider: PlacesProvider;
@@ -23,6 +24,8 @@ interface OnboardingScreenProps {
 
 /** Cold-start "tap everywhere you've been" list (issue #6). */
 export function OnboardingScreen({ placesProvider, store, requestLocation, onComplete }: OnboardingScreenProps) {
+  const { colors, type } = useTheme();
+  const styles = useMemo(() => makeStyles(colors, type), [colors, type]);
   const [places, setPlaces] = useState<Place[] | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [finishing, setFinishing] = useState(false);
@@ -148,7 +151,8 @@ export function OnboardingScreen({ placesProvider, store, requestLocation, onCom
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(colors: Palette, type: TypeRamp) {
+  return StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.groupedBackground,
@@ -269,4 +273,5 @@ const styles = StyleSheet.create({
   pressed: {
     opacity: 0.55,
   },
-});
+  });
+}

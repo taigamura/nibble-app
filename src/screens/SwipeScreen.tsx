@@ -15,7 +15,8 @@ import {
 import type { Place, SwipeAction, SwipeEvent, TasteGraph } from '../taste-engine';
 import { DeckContextControl } from './DeckContextControl';
 import { PlaceDetailModal } from './PlaceDetailModal';
-import { colors, radius, shadow, spacing, type } from '../theme';
+import { radius, shadow, spacing, type Palette, type TypeRamp } from '../theme';
+import { useTheme } from '../ThemeProvider';
 
 interface SwipeScreenProps {
   placesProvider: PlacesProvider;
@@ -28,6 +29,8 @@ interface SwipeScreenProps {
 }
 
 export function SwipeScreen({ placesProvider, store, seed, onGoToWant }: SwipeScreenProps) {
+  const { colors, type } = useTheme();
+  const styles = useMemo(() => makeStyles(colors, type), [colors, type]);
   const [candidates, setCandidates] = useState<Place[] | null>(null);
   const [graph, setGraph] = useState<TasteGraph>(emptyTasteGraph());
   const [undoStack, setUndoStack] = useState<SwipeEvent[]>([]);
@@ -302,7 +305,8 @@ export function SwipeScreen({ placesProvider, store, seed, onGoToWant }: SwipeSc
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(colors: Palette, type: TypeRamp) {
+  return StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.groupedBackground,
@@ -445,4 +449,5 @@ const styles = StyleSheet.create({
   wantText: {
     fontSize: 24,
   },
-});
+  });
+}

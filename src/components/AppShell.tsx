@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Platform, SafeAreaView, StyleSheet, View } from 'react-native';
 
-import { colors, shadow } from '../theme';
+import { shadow, type Palette } from '../theme';
+import { useTheme } from '../ThemeProvider';
 
 /**
  * AppShell -- the outer frame.
@@ -26,7 +27,40 @@ const PHONE_MAX_HEIGHT = 880;
 // Close to the iPhone screen corner radius at this width.
 const PHONE_CORNER_RADIUS = 44;
 
+function makeStyles(colors: Palette) {
+  return StyleSheet.create({
+    backdrop: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 24,
+      // systemGray6-ish neutral "desk" so the white phone floats off it.
+      backgroundColor: colors.canvasBackdrop,
+    },
+    phone: {
+      width: '100%',
+      height: '100%',
+      maxWidth: PHONE_MAX_WIDTH,
+      maxHeight: PHONE_MAX_HEIGHT,
+      borderRadius: PHONE_CORNER_RADIUS,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.separator,
+      // Clips the tab bar and any sheets to the rounded device edge.
+      overflow: 'hidden',
+      backgroundColor: colors.groupedBackground,
+      ...shadow.lg,
+    },
+    appSurface: {
+      flex: 1,
+      backgroundColor: colors.groupedBackground,
+    },
+  });
+}
+
 export function AppShell({ children }: { children?: React.ReactNode }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+
   if (Platform.OS === 'web') {
     return (
       <View style={styles.backdrop}>
@@ -39,31 +73,3 @@ export function AppShell({ children }: { children?: React.ReactNode }) {
 
   return <SafeAreaView style={styles.appSurface}>{children}</SafeAreaView>;
 }
-
-const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-    // systemGray6-ish neutral "desk" so the white phone floats off it.
-    backgroundColor: '#E3E3E8',
-  },
-  phone: {
-    width: '100%',
-    height: '100%',
-    maxWidth: PHONE_MAX_WIDTH,
-    maxHeight: PHONE_MAX_HEIGHT,
-    borderRadius: PHONE_CORNER_RADIUS,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.separator,
-    // Clips the tab bar and any sheets to the rounded device edge.
-    overflow: 'hidden',
-    backgroundColor: colors.groupedBackground,
-    ...shadow.lg,
-  },
-  appSurface: {
-    flex: 1,
-    backgroundColor: colors.groupedBackground,
-  },
-});

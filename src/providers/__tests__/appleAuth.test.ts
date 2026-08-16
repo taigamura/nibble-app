@@ -14,6 +14,9 @@ function fakeStorage() {
     setItem: jest.fn(async (key: string, value: string) => {
       data.set(key, value);
     }),
+    removeItem: jest.fn(async (key: string) => {
+      data.delete(key);
+    }),
   };
 }
 
@@ -88,5 +91,26 @@ describe('SupabaseAppleAuthProvider', () => {
     });
 
     await expect(provider.signInWithApple()).rejects.toThrow('status 401');
+  });
+
+  it('signOut clears the in-memory session and the persisted session', async () => {
+    (AppleAuthentication.signInAsync as jest.Mock).mockResolvedValue({ identityToken: 'apple-token' });
+    const fetchImpl = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ access_token: 'sb-token', user: { id: 'user-1' } }),
+    });
+    const storage = fakeStorage();
+    const provider = new SupabaseAppleAuthProvider({
+      supabaseUrl: 'https://project.supabase.co',
+      supabaseAnonKey: 'anon-key',
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      storage,
+    });
+    await provider.signInWithApple();
+
+    await provider.signOut();
+
+    expect(storage.removeItem).toHaveBeenCalledWith('nibble.authSession.v1');
+    await expect(provider.getSession()).resolves.toBeNull();
   });
 });

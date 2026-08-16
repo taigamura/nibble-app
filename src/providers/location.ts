@@ -1,6 +1,6 @@
 import * as Location from 'expo-location';
 
-import type { GeoPoint, LocationProvider } from './types';
+import type { GeoPoint, LocationPermissionStatus, LocationProvider } from './types';
 
 /**
  * Requests foreground location permission and reads the device's current
@@ -19,6 +19,17 @@ export class ExpoLocationProvider implements LocationProvider {
       return { lat: position.coords.latitude, lng: position.coords.longitude };
     } catch {
       return null;
+    }
+  }
+
+  async getPermissionStatus(): Promise<LocationPermissionStatus> {
+    try {
+      const { status } = await Location.getForegroundPermissionsAsync();
+      if (status === 'granted') return 'granted';
+      if (status === 'undetermined') return 'undetermined';
+      return 'denied';
+    } catch {
+      return 'denied';
     }
   }
 }

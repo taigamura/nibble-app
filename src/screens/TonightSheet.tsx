@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Image, Linking, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { rankTonight } from '../collection/tonight';
 import type { Place, TasteVector } from '../taste-engine';
 import { whySurfaced } from '../taste-engine';
-import { colors, radius, shadow, spacing, type } from '../theme';
+import { radius, shadow, spacing, type Palette, type TypeRamp } from '../theme';
+import { useTheme } from '../ThemeProvider';
 import { buildMapUrl } from './googleMapsLinks';
 
 interface TonightSheetProps {
@@ -23,6 +24,8 @@ interface TonightSheetProps {
  * off to directions. Not a random shuffle; it's a decision shortcut.
  */
 export function TonightSheet({ visible, wantPlaces, vector, onClose }: TonightSheetProps) {
+  const { colors, type } = useTheme();
+  const styles = useMemo(() => makeStyles(colors, type), [colors, type]);
   const [index, setIndex] = useState(0);
   const ranked = rankTonight(wantPlaces, vector);
 
@@ -92,7 +95,8 @@ export function TonightSheet({ visible, wantPlaces, vector, onClose }: TonightSh
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(colors: Palette, type: TypeRamp) {
+  return StyleSheet.create({
   backdrop: {
     flex: 1,
     backgroundColor: colors.scrim,
@@ -184,4 +188,5 @@ const styles = StyleSheet.create({
     ...type.subheadline,
     color: colors.secondaryLabel,
   },
-});
+  });
+}

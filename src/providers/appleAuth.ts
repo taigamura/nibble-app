@@ -11,7 +11,11 @@ export interface SupabaseAppleAuthProviderOptions {
   /** Injected fetch, defaulting to the global -- mirrors `SupabasePlacesProvider`. */
   fetchImpl?: typeof fetch;
   /** Injected persistence so a session survives an app restart; defaults to AsyncStorage. */
-  storage?: { getItem(key: string): Promise<string | null>; setItem(key: string, value: string): Promise<void> };
+  storage?: {
+    getItem(key: string): Promise<string | null>;
+    setItem(key: string, value: string): Promise<void>;
+    removeItem(key: string): Promise<void>;
+  };
 }
 
 interface SupabaseTokenResponse {
@@ -70,5 +74,10 @@ export class SupabaseAppleAuthProvider implements AuthProvider {
     this.session = session;
     await this.storage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
     return session;
+  }
+
+  async signOut(): Promise<void> {
+    this.session = null;
+    await this.storage.removeItem(SESSION_STORAGE_KEY);
   }
 }

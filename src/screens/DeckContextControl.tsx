@@ -1,8 +1,10 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { DECK_AREAS, RADIUS_OPTIONS_METERS } from '../config/areas';
 import type { DeckContext } from '../providers/types';
+import { useTheme } from '../ThemeProvider';
+import { type Palette, type TypeRamp } from '../theme';
 
 interface DeckContextControlProps {
   visible: boolean;
@@ -30,6 +32,8 @@ export function DeckContextControl({
   onChange,
   onClose,
 }: DeckContextControlProps) {
+  const { colors, type } = useTheme();
+  const styles = useMemo(() => makeStyles(colors, type), [colors, type]);
   const selectedAreaId = context.center
     ? DECK_AREAS.find(
         (area) => area.center.lat === context.center!.lat && area.center.lng === context.center!.lng
@@ -95,68 +99,71 @@ export function DeckContextControl({
   );
 }
 
-const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'flex-end',
-  },
-  sheet: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 24,
-    maxHeight: '70%',
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: '700',
-  },
-  sectionLabel: {
-    marginTop: 16,
-    marginBottom: 8,
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#666',
-  },
-  row: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  areaRow: {
-    marginBottom: 8,
-  },
-  chip: {
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    backgroundColor: '#fafafa',
-  },
-  chipActive: {
-    borderColor: '#111',
-    backgroundColor: '#111',
-  },
-  chipText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#333',
-  },
-  chipTextActive: {
-    color: '#fff',
-  },
-  done: {
-    marginTop: 16,
-    paddingVertical: 14,
-    alignItems: 'center',
-    backgroundColor: '#f0f0f0',
-    borderRadius: 10,
-  },
-  doneText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#111',
-  },
-});
+function makeStyles(colors: Palette, type: TypeRamp) {
+  return StyleSheet.create({
+    backdrop: {
+      flex: 1,
+      backgroundColor: colors.scrim,
+      justifyContent: 'flex-end',
+    },
+    sheet: {
+      backgroundColor: colors.background,
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      padding: 24,
+      maxHeight: '70%',
+    },
+    title: {
+      fontSize: 20,
+      fontWeight: '700',
+      color: colors.label,
+    },
+    sectionLabel: {
+      marginTop: 16,
+      marginBottom: 8,
+      fontSize: 13,
+      fontWeight: '600',
+      color: colors.secondaryLabel,
+    },
+    row: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+    },
+    areaRow: {
+      marginBottom: 8,
+    },
+    chip: {
+      paddingVertical: 10,
+      paddingHorizontal: 16,
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: colors.separator,
+      backgroundColor: colors.fill,
+    },
+    chipActive: {
+      borderColor: colors.tint,
+      backgroundColor: colors.tint,
+    },
+    chipText: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: colors.label,
+    },
+    chipTextActive: {
+      color: colors.labelOnColor,
+    },
+    done: {
+      marginTop: 16,
+      paddingVertical: 14,
+      alignItems: 'center',
+      backgroundColor: colors.fill,
+      borderRadius: 10,
+    },
+    doneText: {
+      fontSize: 15,
+      fontWeight: '700',
+      color: colors.label,
+    },
+  });
+}

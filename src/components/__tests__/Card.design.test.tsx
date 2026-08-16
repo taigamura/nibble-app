@@ -3,7 +3,8 @@ import TestRenderer, { act, type ReactTestRenderer } from 'react-test-renderer';
 import { Image, Text, View } from 'react-native';
 
 import { Card } from '../Card';
-import { colors } from '../../theme';
+import { lightColors } from '../../theme';
+import { ThemeProvider } from '../../ThemeProvider';
 import type { Place } from '../../taste-engine';
 
 const place: Place = {
@@ -20,7 +21,7 @@ const place: Place = {
 function render(element: React.ReactElement): ReactTestRenderer {
   let renderer!: ReactTestRenderer;
   act(() => {
-    renderer = TestRenderer.create(element);
+    renderer = TestRenderer.create(<ThemeProvider>{element}</ThemeProvider>);
   });
   return renderer;
 }
@@ -49,7 +50,7 @@ describe('Card swipe guides (design)', () => {
     const wantStyle = Array.isArray(wantLabel.props.style)
       ? Object.assign({}, ...wantLabel.props.style)
       : wantLabel.props.style;
-    expect(wantStyle.color).toBe(colors.want);
+    expect(wantStyle.color).toBe(lightColors.want);
   });
 
   it('starts every guide fully transparent so it only appears mid-drag', () => {
