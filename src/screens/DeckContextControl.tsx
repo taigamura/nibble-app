@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { DECK_AREAS, RADIUS_OPTIONS_METERS } from '../config/areas';
-import type { DeckContext } from '../providers/types';
+import type { DeckContext, GeoPoint } from '../providers/types';
 import { useTheme } from '../ThemeProvider';
 import { type Palette, type TypeRamp } from '../theme';
 
@@ -11,12 +11,22 @@ interface DeckContextControlProps {
   context: DeckContext;
   /** Label shown for the "use my current location" option. */
   currentLocationLabel?: string;
+  /** The user's saved Home snapshot, or `null` when unset. Surfaces as a chip. */
+  homePoint?: GeoPoint | null;
+  /** Captures the device's current position as Home (may prompt for permission). */
+  onSetHome?: () => void;
+  /** Un-sets Home. */
+  onClearHome?: () => void;
   onChange: (context: DeckContext) => void;
   onClose: () => void;
 }
 
 function formatRadius(meters: number): string {
   return meters >= 1000 ? `${meters / 1000}km` : `${meters}m`;
+}
+
+function pointsEqual(a: GeoPoint | undefined | null, b: GeoPoint | undefined | null): boolean {
+  return !!a && !!b && a.lat === b.lat && a.lng === b.lng;
 }
 
 /**
@@ -29,16 +39,21 @@ export function DeckContextControl({
   visible,
   context,
   currentLocationLabel = 'Current location',
+  homePoint,
+  onSetHome,
+  onClearHome,
   onChange,
   onClose,
 }: DeckContextControlProps) {
   const { colors, type } = useTheme();
   const styles = useMemo(() => makeStyles(colors, type), [colors, type]);
-  const selectedAreaId = context.center
-    ? DECK_AREAS.find(
-        (area) => area.center.lat === context.center!.lat && area.center.lng === context.center!.lng
-      )?.id
-    : undefined;
+  const homeSelected = pointsEqual(context.center, homePoint);
+  const selectedAreaId =
+    context.center && !homeSelected
+      ? DECK_AREAS.find(
+          (area) => area.center.lat === context.center!.lat && area.center.lng === context.center!.lng
+        )?.id
+      : undefined;
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
@@ -75,6 +90,18 @@ export function DeckContextControl({
                 {currentLocationLabel}
               </Text>
             </Pressable>
+            {homePoint && (
+              <Pressable
+                accessibilityLabel="Home"
+                accessibilityState={{ selected: homeSelected }}
+                style={[styles.chip, styles.areaRow, homeSelected && styles.chipActive]}
+                onPress={() => onChange({ ...context, center: homePoint })}
+              >
+                <Text style={[styles.chipText, homeSelected && styles.chipTextActive]}>
+                  🏠 Home
+                </Text>
+              </Pressable>
+            )}
             {DECK_AREAS.map((area) => (
               <Pressable
                 key={area.id}
@@ -89,6 +116,25 @@ export function DeckContextControl({
               </Pressable>
             ))}
           </ScrollView>
+
+          {onSetHome && (
+            <View style={styles.homeActions}>
+              <Pressable
+                accessibilityLabel={homePoint ? 'Update Home to current location' : 'Set current location as Home'}
+                style={styles.homeAction}
+                onPress={onSetHome}
+              >
+                <Text style={styles.homeActionText}>
+                  {homePoint ? 'Update Home to current location' : 'Set current location as Home'}
+                </Text>
+              </Pressable>
+              {homePoint && onClearHome && (
+                <Pressable accessibilityLabel="Clear Home" style={styles.homeAction} onPress={onClearHome}>
+                  <Text style={styles.homeActionClear}>Clear Home</Text>
+                </Pressable>
+              )}
+            </View>
+          )}
 
           <Pressable accessibilityLabel="Done" style={styles.done} onPress={onClose}>
             <Text style={styles.doneText}>Done</Text>
@@ -152,6 +198,26 @@ function makeStyles(colors: Palette, type: TypeRamp) {
     },
     chipTextActive: {
       color: colors.labelOnColor,
+    },
+    homeActions: {
+      marginTop: 12,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: colors.separator,
+      paddingTop: 12,
+      gap: 4,
+    },
+    homeAction: {
+      paddingVertical: 8,
+    },
+    homeActionText: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: colors.tint,
+    },
+    homeActionClear: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: colors.nope,
     },
     done: {
       marginTop: 16,

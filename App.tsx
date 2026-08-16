@@ -1,6 +1,6 @@
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AppShell } from './src/components/AppShell';
 import { migrateLocalDataToCloud } from './src/auth/migrateToCloud';
@@ -9,6 +9,7 @@ import { SupabaseAppleAuthProvider } from './src/providers/appleAuth';
 import { FixturePlacesProvider, NoopEnrichmentProvider } from './src/providers/inMemory';
 import { LocalStore } from './src/providers/localStore';
 import { OnboardingState } from './src/onboarding/onboardingState';
+import { HomeLocationState } from './src/settings/homeLocationState';
 import { ExpoLocationProvider } from './src/providers/location';
 import { SupabasePlacesProvider } from './src/providers/supabasePlaces';
 import { SupabaseStore } from './src/providers/supabaseStore';
@@ -104,6 +105,7 @@ function AppContent() {
   const enrichmentProvider = useRef(new NoopEnrichmentProvider()).current;
   const localStore = useRef(new LocalStore()).current;
   const onboardingState = useRef(new OnboardingState()).current;
+  const homeLocationState = useRef(new HomeLocationState()).current;
   const authProvider = useRef(createAuthProvider()).current;
   const sessionRef = useRef<AuthSession | null>(null);
   const cloudStore = useRef(
@@ -123,6 +125,7 @@ function AppContent() {
   const [signingIn, setSigningIn] = useState(false);
   const [signInError, setSignInError] = useState<string | null>(null);
   const [settingsVisible, setSettingsVisible] = useState(false);
+  const [homePoint, setHomePoint] = useState<GeoPoint | null>(null);
 
   // Restores the persisted onboarding flag on cold start so a returning user
   // lands straight on the deck instead of re-running the "been" grid.
@@ -153,6 +156,19 @@ function AppContent() {
       cancelled = true;
     };
   }, [authProvider]);
+
+  // Restores the saved Home snapshot on cold start so its chip is available in
+  // the area picker without waiting for the user to reopen Settings.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const point = await homeLocationState.get();
+      if (!cancelled) setHomePoint(point);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [homeLocationState]);
 
   const store = session && cloudStore ? cloudStore : localStore;
 
@@ -200,6 +216,10 @@ function AppContent() {
   const handleResetAllData = async () => {
     await localStore.clear();
     await onboardingState.clear();
+    // Home is user location data (unlike the appearance preference), so Reset
+    // clears it too. See HomeLocationState's doc comment.
+    await homeLocationState.clear();
+    setHomePoint(null);
     if (authProvider) await authProvider.signOut();
     sessionRef.current = null;
     setSession(null);
@@ -207,6 +227,28 @@ function AppContent() {
     setSettingsVisible(false);
     setActiveTab('swipe');
     setOnboarded(false);
+  };
+
+  // Freezes the device's current GPS position as Home. Reads a fresh fix
+  // directly (not the cached session resolver) so re-capturing after a move
+  // actually updates it; a denial/failure resolves to null, so we surface a
+  // hint instead of silently storing the Tokyo fallback.
+  const handleSetHome = async () => {
+    const point = await locationProvider.getCurrentLocation();
+    if (!point) {
+      Alert.alert(
+        'Location unavailable',
+        'Nibble needs location access to set Home. Enable it in your device Settings and try again.'
+      );
+      return;
+    }
+    await homeLocationState.set(point);
+    setHomePoint(point);
+  };
+
+  const handleClearHome = async () => {
+    await homeLocationState.clear();
+    setHomePoint(null);
   };
 
   // Non-destructive: replay the intro grid without touching taste data.
@@ -240,6 +282,9 @@ function AppContent() {
                 enrichmentProvider={enrichmentProvider}
                 store={store}
                 onGoToWant={() => setActiveTab('collection')}
+                homePoint={homePoint}
+                onSetHome={handleSetHome}
+                onClearHome={handleClearHome}
               />
             ) : (
               <CollectionScreen
