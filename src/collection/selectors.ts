@@ -53,27 +53,3 @@ export function getBeenCategoryStats(graph: TasteGraph): CategoryStat[] {
     .map(([category, count]) => ({ category, count }))
     .sort((a, b) => b.count - a.count || a.category.localeCompare(b.category));
 }
-
-export type MapPointKind = 'want' | 'been';
-
-export interface MapPoint {
-  place: Place;
-  kind: MapPointKind;
-}
-
-/**
- * Want + Been places with known coordinates, ready for the map view. Places
- * missing lat/lng (possible for hand-authored fixtures without geo data)
- * are dropped rather than plotted at a guessed location.
- */
-export function getMapPoints(graph: TasteGraph): MapPoint[] {
-  const hasCoords = (place: Place) => place.lat !== undefined && place.lng !== undefined;
-  const want = getWantPlaces(graph)
-    .filter(hasCoords)
-    .map((place): MapPoint => ({ place, kind: 'want' }));
-  const been = getBeenEntries(graph)
-    .map((entry) => entry.place)
-    .filter(hasCoords)
-    .map((place): MapPoint => ({ place, kind: 'been' }));
-  return [...want, ...been];
-}

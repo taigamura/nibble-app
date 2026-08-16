@@ -26,7 +26,7 @@ const PHONE_MAX_HEIGHT = 880;
 // Close to the iPhone screen corner radius at this width.
 const PHONE_CORNER_RADIUS = 44;
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+export function AppShell({ children }: { children?: React.ReactNode }) {
   if (Platform.OS === 'web') {
     return (
       <View style={styles.backdrop}>

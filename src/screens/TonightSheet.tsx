@@ -5,7 +5,7 @@ import { rankTonight } from '../collection/tonight';
 import type { Place, TasteVector } from '../taste-engine';
 import { whySurfaced } from '../taste-engine';
 import { colors, radius, shadow, spacing, type } from '../theme';
-import { buildDirectionsUrl } from './googleMapsLinks';
+import { buildMapUrl } from './googleMapsLinks';
 
 interface TonightSheetProps {
   visible: boolean;
@@ -66,7 +66,7 @@ export function TonightSheet({ visible, wantPlaces, vector, onClose }: TonightSh
               <Pressable
                 accessibilityLabel={`Let's go to ${pick.name}`}
                 style={[styles.button, styles.go]}
-                onPress={() => Linking.openURL(buildDirectionsUrl(pick))}
+                onPress={() => Linking.openURL(buildMapUrl(pick))}
               >
                 <Text style={[styles.buttonText, styles.goText]}>Let&apos;s go</Text>
               </Pressable>

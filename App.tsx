@@ -8,6 +8,7 @@ import { isRealBackendConfigured, loadConfig } from './src/config/env';
 import { SupabaseAppleAuthProvider } from './src/providers/appleAuth';
 import { FixturePlacesProvider, NoopEnrichmentProvider } from './src/providers/inMemory';
 import { LocalStore } from './src/providers/localStore';
+import { OnboardingState } from './src/onboarding/onboardingState';
 import { ExpoLocationProvider } from './src/providers/location';
 import { SupabasePlacesProvider } from './src/providers/supabasePlaces';
 import { SupabaseStore } from './src/providers/supabaseStore';
@@ -83,6 +84,7 @@ export default function App() {
   const placesProvider = useRef(createPlacesProvider(getUserLocation)).current;
   const enrichmentProvider = useRef(new NoopEnrichmentProvider()).current;
   const localStore = useRef(new LocalStore()).current;
+  const onboardingState = useRef(new OnboardingState()).current;
   const authProvider = useRef(createAuthProvider()).current;
   const sessionRef = useRef<AuthSession | null>(null);
   const cloudStore = useRef(
@@ -92,13 +94,28 @@ export default function App() {
     })
   ).current;
 
-  const [onboarded, setOnboarded] = useState(false);
+  // `null` while the persisted flag is still being restored, so we render
+  // nothing rather than flashing onboarding before we know the answer.
+  const [onboarded, setOnboarded] = useState<boolean | null>(null);
   const [activeTab, setActiveTab] = useState<'swipe' | 'collection'>('swipe');
   const [session, setSession] = useState<AuthSession | null>(null);
   const [signInPromptVisible, setSignInPromptVisible] = useState(false);
   const [hasPromptedThisRun, setHasPromptedThisRun] = useState(false);
   const [signingIn, setSigningIn] = useState(false);
   const [signInError, setSignInError] = useState<string | null>(null);
+
+  // Restores the persisted onboarding flag on cold start so a returning user
+  // lands straight on the deck instead of re-running the "been" grid.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const done = await onboardingState.hasOnboarded();
+      if (!cancelled) setOnboarded(done);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [onboardingState]);
 
   // Restores a previously-established session (e.g. after a cold restart) so
   // a signed-in user lands on their cloud store without re-prompting.
@@ -148,6 +165,19 @@ export default function App() {
     }
   };
 
+  const handleOnboardingComplete = () => {
+    setOnboarded(true);
+    // Fire-and-forget: the in-memory flag already advances the UI; persisting
+    // is what makes the next cold start skip onboarding.
+    void onboardingState.setOnboarded();
+  };
+
+  // Hold on a blank shell until the persisted flag resolves, so we never flash
+  // onboarding at a user who has already completed it.
+  if (onboarded === null) {
+    return <AppShell />;
+  }
+
   return (
     <AppShell>
       {onboarded ? (
@@ -158,6 +188,7 @@ export default function App() {
                 placesProvider={placesProvider}
                 enrichmentProvider={enrichmentProvider}
                 store={store}
+                onGoToWant={() => setActiveTab('collection')}
               />
             ) : (
               <CollectionScreen
@@ -200,7 +231,7 @@ export default function App() {
           placesProvider={placesProvider}
           store={store}
           requestLocation={getUserLocation}
-          onComplete={() => setOnboarded(true)}
+          onComplete={handleOnboardingComplete}
         />
       )}
       <SignInPromptModal

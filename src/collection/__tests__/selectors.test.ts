@@ -3,7 +3,6 @@ import type { Place, SwipeEvent, TasteGraph } from '../../taste-engine';
 import {
   getBeenCategoryStats,
   getBeenEntries,
-  getMapPoints,
   getReviewTags,
   getWantPlaces,
 } from '../selectors';
@@ -23,7 +22,6 @@ function place(overrides: Partial<Place> & Pick<Place, 'id' | 'category'>): Plac
 
 const WANT_PLACE = place({ id: 'w1', category: 'ramen', lat: 35.0, lng: 139.0 });
 const BEEN_PLACE = place({ id: 'b1', category: 'sushi', lat: 35.1, lng: 139.1 });
-const BEEN_PLACE_NO_GEO = place({ id: 'b2', category: 'sushi' });
 const NOPE_PLACE = place({ id: 'n1', category: 'izakaya' });
 
 function graphWith(events: SwipeEvent[]): TasteGraph {
@@ -79,20 +77,6 @@ describe('getBeenCategoryStats', () => {
     expect(getBeenCategoryStats(graph)).toEqual([
       { category: 'sushi', count: 2 },
       { category: 'ramen', count: 1 },
-    ]);
-  });
-});
-
-describe('getMapPoints', () => {
-  it('combines want and been places, dropping those without coordinates', () => {
-    const graph = graphWith([
-      { place: WANT_PLACE, action: 'want', timestamp: 1 },
-      { place: BEEN_PLACE, action: 'been', timestamp: 2 },
-      { place: BEEN_PLACE_NO_GEO, action: 'been', timestamp: 3 },
-    ]);
-    expect(getMapPoints(graph)).toEqual([
-      { place: WANT_PLACE, kind: 'want' },
-      { place: BEEN_PLACE, kind: 'been' },
     ]);
   });
 });

@@ -3,7 +3,7 @@ import { Image, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } 
 
 import type { Place } from '../taste-engine';
 import { colors, radius, spacing, type } from '../theme';
-import { buildDirectionsUrl, buildWriteReviewUrl } from './googleMapsLinks';
+import { buildMapUrl, buildWriteReviewUrl } from './googleMapsLinks';
 
 interface PlaceDetailModalProps {
   place: Place | null;
@@ -18,6 +18,13 @@ interface PlaceDetailModalProps {
    * to render a read-only sheet.
    */
   onSubmitReview?: (placeId: string, rating: number, reviewTags: string[]) => void;
+  /**
+   * When provided, an "I went" button renders for a place that hasn't been
+   * marked Been yet -- moving it from Want to Been (issue: Want -> Been).
+   * Omit for places already Been or when the caller doesn't support the
+   * transition (e.g. the swipe deck's detail view).
+   */
+  onMarkBeen?: (placeId: string) => void;
   onClose: () => void;
 }
 
@@ -29,6 +36,7 @@ export function PlaceDetailModal({
   rating,
   reviewTags,
   onSubmitReview,
+  onMarkBeen,
   onClose,
 }: PlaceDetailModalProps) {
   const [draftRating, setDraftRating] = useState<number>(rating ?? 0);
@@ -127,14 +135,25 @@ export function PlaceDetailModal({
               </View>
             </ScrollView>
           )}
+          {place && onMarkBeen && (
+            <View style={styles.actions}>
+              <Pressable
+                accessibilityLabel="I went"
+                style={[styles.actionButton, styles.iWent]}
+                onPress={() => onMarkBeen(place.id)}
+              >
+                <Text style={[styles.actionText, styles.iWentText]}>I went</Text>
+              </Pressable>
+            </View>
+          )}
           {place && (
             <View style={styles.actions}>
               <Pressable
-                accessibilityLabel="Directions"
+                accessibilityLabel="Open in Maps"
                 style={[styles.actionButton, styles.directions]}
-                onPress={() => Linking.openURL(buildDirectionsUrl(place))}
+                onPress={() => Linking.openURL(buildMapUrl(place))}
               >
-                <Text style={[styles.actionText, styles.directionsText]}>Directions</Text>
+                <Text style={[styles.actionText, styles.directionsText]}>Open in Maps</Text>
               </Pressable>
               <Pressable
                 accessibilityLabel="Write a Google review"
@@ -284,6 +303,12 @@ const styles = StyleSheet.create({
   },
   directions: {
     backgroundColor: colors.label,
+  },
+  iWent: {
+    backgroundColor: colors.been,
+  },
+  iWentText: {
+    color: colors.labelOnColor,
   },
   googleReview: {
     backgroundColor: colors.fill,

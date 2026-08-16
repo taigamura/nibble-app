@@ -114,3 +114,26 @@ export function applyReview(graph: TasteGraph, placeId: string, review: Review):
   );
   return history.reduce(updateTaste, emptyTasteGraph());
 }
+
+/**
+ * Promotes a Want to a Been ("I actually went"), optionally with a rating.
+ * Rewrites the place's 'want' event in place to 'been' (keeping its original
+ * timestamp, like applyRating/applyReview do), then replays history from
+ * scratch so the vector reflects the stronger Been weight. A no-op if no
+ * 'want' event exists for the place.
+ */
+export function markBeen(graph: TasteGraph, placeId: string, rating?: number): TasteGraph {
+  const hasWant = graph.history.some(
+    (event) => event.action === 'want' && event.place.id === placeId
+  );
+  if (!hasWant) {
+    return graph;
+  }
+
+  const history = graph.history.map((event) =>
+    event.action === 'want' && event.place.id === placeId
+      ? { ...event, action: 'been' as const, ...(rating !== undefined ? { rating } : {}) }
+      : event
+  );
+  return history.reduce(updateTaste, emptyTasteGraph());
+}

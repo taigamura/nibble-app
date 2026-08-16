@@ -56,6 +56,46 @@ function allText(renderer: ReactTestRenderer): string[] {
     .filter(Boolean);
 }
 
+describe('SwipeScreen empty-deck decision card', () => {
+  it('offers Widen, Reset seen, and See Want list when the deck runs out', async () => {
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = TestRenderer.create(
+        <SwipeScreen
+          placesProvider={{ getCandidates: async () => [] }}
+          enrichmentProvider={makeEnrichment()}
+          store={makeStore()}
+          seed={1}
+          onGoToWant={() => {}}
+        />
+      );
+    });
+    await act(async () => {});
+
+    const text = allText(renderer);
+    expect(text).toContain('Widen the search');
+    expect(text).toContain('Reset seen');
+    expect(text).toContain('See Want list');
+  });
+
+  it('hides See Want list when onGoToWant is not provided', async () => {
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = TestRenderer.create(
+        <SwipeScreen
+          placesProvider={{ getCandidates: async () => [] }}
+          enrichmentProvider={makeEnrichment()}
+          store={makeStore()}
+          seed={1}
+        />
+      );
+    });
+    await act(async () => {});
+
+    expect(allText(renderer)).not.toContain('See Want list');
+  });
+});
+
 describe('SwipeScreen guidance (design)', () => {
   it('labels every bottom button so its action is legible without guessing', async () => {
     const renderer = await renderSwipe();
@@ -65,16 +105,8 @@ describe('SwipeScreen guidance (design)', () => {
     }
   });
 
-  it('shows a swipe hint that maps each direction to its action', async () => {
-    const renderer = await renderSwipe();
-    const text = allText(renderer).join(' ');
-    expect(text).toMatch(/Nope/);
-    expect(text).toMatch(/Been/);
-    expect(text).toMatch(/Want/);
-    // The hint spells out the directional gesture, not just the buttons.
-    expect(text).toMatch(/Swipe/);
-  });
-
+  // The directional gesture mapping is conveyed per-button via
+  // accessibilityHint (below) rather than a standalone visible hint line.
   it('gives each action button an accessibility hint describing its gesture', async () => {
     const renderer = await renderSwipe();
     const nope = renderer.root.findByProps({ accessibilityLabel: 'Nope' });

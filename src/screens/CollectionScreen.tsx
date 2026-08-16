@@ -1,17 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { CollectionMap } from '../components/CollectionMap';
 import {
   getBeenCategoryStats,
   getBeenEntries,
-  getMapPoints,
   getReviewTags,
   getWantPlaces,
 } from '../collection/selectors';
 import type { BeenEntry } from '../collection/selectors';
 import type { Store } from '../providers/types';
-import { applyReview } from '../taste-engine';
+import { applyReview, markBeen } from '../taste-engine';
 import type { Place, TasteGraph } from '../taste-engine';
 import { PlaceDetailModal } from './PlaceDetailModal';
 import { TonightSheet } from './TonightSheet';
@@ -25,12 +23,11 @@ interface CollectionScreenProps {
   onRequestSignIn?: () => void;
 }
 
-type Tab = 'want' | 'been' | 'map';
+type Tab = 'want' | 'been';
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'want', label: 'Want' },
   { key: 'been', label: 'Been' },
-  { key: 'map', label: 'Map' },
 ];
 
 export function CollectionScreen({ store, canSignIn, signedIn, onRequestSignIn }: CollectionScreenProps) {
@@ -40,6 +37,8 @@ export function CollectionScreen({ store, canSignIn, signedIn, onRequestSignIn }
     place: Place;
     rating?: number;
     canReview?: boolean;
+    /** True when opened from a Want row/context -- offers "I went" in the modal. */
+    isWant?: boolean;
   } | null>(null);
   const [tonightVisible, setTonightVisible] = useState(false);
 
@@ -65,13 +64,24 @@ export function CollectionScreen({ store, canSignIn, signedIn, onRequestSignIn }
   const wantPlaces = getWantPlaces(graph);
   const beenEntries = getBeenEntries(graph);
   const categoryStats = getBeenCategoryStats(graph);
-  const mapPoints = getMapPoints(graph);
-  const beenIds = new Set(beenEntries.map((entry) => entry.place.id));
 
   const handleSubmitReview = (placeId: string, rating: number, reviewTags: string[]) => {
     const next = applyReview(graph, placeId, { rating, reviewTags });
     setGraph(next);
     void store.saveGraph(next);
+  };
+
+  // Moves a place from Want to Been, then reopens the detail modal (with
+  // review enabled) on the freshly-Been place so the user can rate right
+  // away or skip.
+  const handleMarkBeen = (placeId: string) => {
+    const place = wantPlaces.find((p) => p.id === placeId);
+    const next = markBeen(graph, placeId);
+    setGraph(next);
+    void store.saveGraph(next);
+    if (place) {
+      setSelected({ place, rating: next.ratings[placeId], canReview: true, isWant: false });
+    }
   };
 
   return (
@@ -109,7 +119,8 @@ export function CollectionScreen({ store, canSignIn, signedIn, onRequestSignIn }
           <PlaceList
             data={wantPlaces.map((place) => ({ place }))}
             emptyText="Swipe right on places to build your Want list."
-            onSelect={(entry) => setSelected({ place: entry.place })}
+            onSelect={(entry) => setSelected({ place: entry.place, isWant: true })}
+            onMarkBeen={handleMarkBeen}
           />
         </>
       )}
@@ -135,24 +146,12 @@ export function CollectionScreen({ store, canSignIn, signedIn, onRequestSignIn }
         </>
       )}
 
-      {tab === 'map' && (
-        <CollectionMap
-          points={mapPoints}
-          onSelect={(place) =>
-            setSelected({
-              place,
-              rating: graph.ratings[place.id],
-              canReview: beenIds.has(place.id),
-            })
-          }
-        />
-      )}
-
       <PlaceDetailModal
         place={selected?.place ?? null}
         rating={selected?.rating}
         reviewTags={selected ? getReviewTags(graph, selected.place.id) : undefined}
         onSubmitReview={selected?.canReview ? handleSubmitReview : undefined}
+        onMarkBeen={selected?.isWant ? handleMarkBeen : undefined}
         onClose={() => setSelected(null)}
       />
 
@@ -170,9 +169,11 @@ interface PlaceListProps {
   data: BeenEntry[];
   emptyText: string;
   onSelect: (entry: BeenEntry) => void;
+  /** When provided, each row shows an "I went" affordance (Want tab only). */
+  onMarkBeen?: (placeId: string) => void;
 }
 
-function PlaceList({ data, emptyText, onSelect }: PlaceListProps) {
+function PlaceList({ data, emptyText, onSelect, onMarkBeen }: PlaceListProps) {
   if (data.length === 0) {
     return (
       <View style={styles.center}>
@@ -199,6 +200,18 @@ function PlaceList({ data, emptyText, onSelect }: PlaceListProps) {
               {item.rating !== undefined ? ` · your rating ${'★'.repeat(item.rating)}` : ''}
             </Text>
           </View>
+          {onMarkBeen && (
+            <Pressable
+              accessibilityLabel={`I went to ${item.place.name}`}
+              style={styles.iWentRowButton}
+              onPress={(e) => {
+                e.stopPropagation();
+                onMarkBeen(item.place.id);
+              }}
+            >
+              <Text style={styles.iWentRowButtonText}>I went</Text>
+            </Pressable>
+          )}
         </Pressable>
       )}
     />
@@ -315,5 +328,18 @@ const styles = StyleSheet.create({
     marginTop: 3,
     fontSize: 12,
     color: '#666',
+  },
+  iWentRowButton: {
+    alignSelf: 'center',
+    marginRight: 12,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    backgroundColor: '#34C759',
+  },
+  iWentRowButtonText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#fff',
   },
 });

@@ -160,7 +160,9 @@ describe('rankDeck', () => {
   ];
 
   it('excludes already-actioned places', () => {
-    const graph: TasteGraph = { ...emptyTasteGraph(), actionedPlaceIds: ['ramen-1', 'bar-1'] };
+    let graph: TasteGraph = emptyTasteGraph();
+    graph = updateTaste(graph, swipe(places.find((p) => p.id === 'ramen-1')!, 'want'));
+    graph = updateTaste(graph, swipe(places.find((p) => p.id === 'bar-1')!, 'been'));
     const deck = rankDeck(graph, places, { seed: 1 });
 
     expect(deck.find((p) => p.id === 'ramen-1')).toBeUndefined();

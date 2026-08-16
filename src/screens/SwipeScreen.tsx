@@ -3,9 +3,15 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 
 import { Card, type CardHandle } from '../components/Card';
 import { RatingPrompt } from '../components/RatingPrompt';
-import { DEFAULT_RADIUS_METERS } from '../config/areas';
+import { DEFAULT_RADIUS_METERS, RADIUS_OPTIONS_METERS } from '../config/areas';
 import type { DeckContext, EnrichmentProvider, PlacesProvider, Store } from '../providers/types';
-import { applyRating, emptyTasteGraph, rankDeck, updateTaste } from '../taste-engine';
+import {
+  applyRating,
+  DEFAULT_NOPE_COOLDOWN_MS,
+  emptyTasteGraph,
+  rankDeck,
+  updateTaste,
+} from '../taste-engine';
 import type { Place, SwipeAction, SwipeEvent, TasteGraph } from '../taste-engine';
 import { DeckContextControl } from './DeckContextControl';
 import { PlaceDetailModal } from './PlaceDetailModal';
@@ -17,9 +23,11 @@ interface SwipeScreenProps {
   store: Store;
   /** Injected seed for the wildcard shuffle. Defaults to a per-session value. */
   seed?: number;
+  /** Navigates to the Want tab (Collection screen). Hidden when omitted. */
+  onGoToWant?: () => void;
 }
 
-export function SwipeScreen({ placesProvider, store, seed }: SwipeScreenProps) {
+export function SwipeScreen({ placesProvider, store, seed, onGoToWant }: SwipeScreenProps) {
   const [candidates, setCandidates] = useState<Place[] | null>(null);
   const [graph, setGraph] = useState<TasteGraph>(emptyTasteGraph());
   const [undoStack, setUndoStack] = useState<SwipeEvent[]>([]);
@@ -27,6 +35,11 @@ export function SwipeScreen({ placesProvider, store, seed }: SwipeScreenProps) {
   const [detailPlace, setDetailPlace] = useState<Place | null>(null);
   const [deckContext, setDeckContext] = useState<DeckContext>({ radiusMeters: DEFAULT_RADIUS_METERS });
   const [contextControlVisible, setContextControlVisible] = useState(false);
+  // "Reset seen" (empty-deck decision card) flips this to reveal every Nope
+  // immediately by zeroing the cooldown. Confirmed with a second tap since it
+  // can flood the deck with previously-skipped places.
+  const [nopesReset, setNopesReset] = useState(false);
+  const [resetSeenArmed, setResetSeenArmed] = useState(false);
   const cardRef = useRef<CardHandle>(null);
   // `seed` is meant to be stable for the life of the session (that's what
   // makes the 70/30 blend "injected" rather than reshuffled on every
@@ -34,6 +47,10 @@ export function SwipeScreen({ placesProvider, store, seed }: SwipeScreenProps) {
   // re-evaluate on every render since no caller passes `seed`, silently
   // re-randomizing the wildcard slice on each swipe/undo. Pin it once.
   const sessionSeed = useRef(seed ?? Date.now()).current;
+  // Stable "now" for the Nope-cooldown calculation, for the same reason
+  // `sessionSeed` is pinned: re-reading Date.now() on every render would
+  // reshuffle which nopes are still excluded on every swipe/undo.
+  const sessionNow = useRef(Date.now()).current;
 
   useEffect(() => {
     let cancelled = false;
@@ -67,8 +84,12 @@ export function SwipeScreen({ placesProvider, store, seed }: SwipeScreenProps) {
 
   const deck = useMemo(() => {
     if (!candidates) return [];
-    return rankDeck(graph, candidates, { seed: sessionSeed });
-  }, [candidates, graph, sessionSeed]);
+    return rankDeck(graph, candidates, {
+      seed: sessionSeed,
+      now: sessionNow,
+      nopeCooldownMs: nopesReset ? 0 : DEFAULT_NOPE_COOLDOWN_MS,
+    });
+  }, [candidates, graph, sessionSeed, sessionNow, nopesReset]);
 
   const topPlace = deck[0];
   const nextPlace = deck[1];
@@ -114,6 +135,29 @@ export function SwipeScreen({ placesProvider, store, seed }: SwipeScreenProps) {
     setPendingRating(null);
   };
 
+  const currentRadius = deckContext.radiusMeters ?? DEFAULT_RADIUS_METERS;
+  const radiusIndex = RADIUS_OPTIONS_METERS.indexOf(
+    currentRadius as (typeof RADIUS_OPTIONS_METERS)[number]
+  );
+  const nextRadius =
+    radiusIndex >= 0 && radiusIndex < RADIUS_OPTIONS_METERS.length - 1
+      ? RADIUS_OPTIONS_METERS[radiusIndex + 1]
+      : undefined;
+
+  const handleWiden = () => {
+    if (!nextRadius) return;
+    setDeckContext((prev) => ({ ...prev, radiusMeters: nextRadius }));
+  };
+
+  const handleResetSeen = () => {
+    if (!resetSeenArmed) {
+      setResetSeenArmed(true);
+      return;
+    }
+    setNopesReset(true);
+    setResetSeenArmed(false);
+  };
+
   const radiusLabel =
     deckContext.radiusMeters && deckContext.radiusMeters >= 1000
       ? `${deckContext.radiusMeters / 1000}km`
@@ -139,7 +183,40 @@ export function SwipeScreen({ placesProvider, store, seed }: SwipeScreenProps) {
         )}
         {candidates && !topPlace && (
           <View style={styles.center}>
-            <Text style={styles.emptyText}>That&apos;s everyone nearby for now.</Text>
+            <View style={styles.emptyCard}>
+              <Text style={styles.emptyTitle}>That&apos;s everyone nearby for now.</Text>
+              <Text style={styles.emptySubtitle}>Here are a few ways to keep going.</Text>
+              <View style={styles.emptyActions}>
+                {nextRadius && (
+                  <Pressable
+                    accessibilityLabel="Widen search radius"
+                    style={({ pressed }) => [styles.emptyButton, styles.emptyButtonPrimary, pressed && styles.pressed]}
+                    onPress={handleWiden}
+                  >
+                    <Text style={styles.emptyButtonPrimaryText}>Widen the search</Text>
+                  </Pressable>
+                )}
+                <Pressable
+                  accessibilityLabel="Reset seen places"
+                  accessibilityHint="Brings back places you already passed on"
+                  style={({ pressed }) => [styles.emptyButton, pressed && styles.pressed]}
+                  onPress={handleResetSeen}
+                >
+                  <Text style={styles.emptyButtonText}>
+                    {resetSeenArmed ? 'Tap again to confirm' : 'Reset seen'}
+                  </Text>
+                </Pressable>
+                {onGoToWant && (
+                  <Pressable
+                    accessibilityLabel="See Want list"
+                    style={({ pressed }) => [styles.emptyButton, pressed && styles.pressed]}
+                    onPress={onGoToWant}
+                  >
+                    <Text style={styles.emptyButtonText}>See Want list</Text>
+                  </Pressable>
+                )}
+              </View>
+            </View>
           </View>
         )}
         {nextPlace && (
@@ -157,9 +234,6 @@ export function SwipeScreen({ placesProvider, store, seed }: SwipeScreenProps) {
           />
         )}
       </View>
-      <Text style={styles.swipeHint}>
-        Swipe ← Nope · ↑ Been · → Want, or use the buttons below
-      </Text>
       <View style={styles.controls}>
         <View style={styles.controlItem}>
           <Pressable
@@ -271,6 +345,49 @@ const styles = StyleSheet.create({
     color: colors.secondaryLabel,
     textAlign: 'center',
   },
+  emptyCard: {
+    width: '100%',
+    alignItems: 'center',
+    padding: spacing.xl,
+    borderRadius: radius.lg,
+    backgroundColor: colors.background,
+    ...shadow.sm,
+  },
+  emptyTitle: {
+    ...type.headline,
+    textAlign: 'center',
+  },
+  emptySubtitle: {
+    ...type.footnote,
+    color: colors.secondaryLabel,
+    textAlign: 'center',
+    marginTop: spacing.xs,
+  },
+  emptyActions: {
+    marginTop: spacing.lg,
+    width: '100%',
+    gap: spacing.sm,
+  },
+  emptyButton: {
+    paddingVertical: spacing.sm + 2,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radius.pill,
+    backgroundColor: colors.fill,
+    alignItems: 'center',
+  },
+  emptyButtonPrimary: {
+    backgroundColor: colors.tint,
+  },
+  emptyButtonText: {
+    ...type.subheadline,
+    fontWeight: '600',
+    color: colors.secondaryLabel,
+  },
+  emptyButtonPrimaryText: {
+    ...type.subheadline,
+    fontWeight: '600',
+    color: colors.labelOnColor,
+  },
   deck: {
     flex: 1,
   },
@@ -282,13 +399,6 @@ const styles = StyleSheet.create({
     bottom: 0,
     transform: [{ scale: 0.94 }],
     opacity: 0.5,
-  },
-  swipeHint: {
-    ...type.footnote,
-    color: colors.secondaryLabel,
-    textAlign: 'center',
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
   },
   controls: {
     flexDirection: 'row',
