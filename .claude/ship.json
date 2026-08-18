@@ -1,0 +1,23 @@
+{
+  "git": {
+    "defaultBranch": "main",
+    "workflow": "pr",
+    "commitTrailers": [
+      "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "Claude-Session: https://claude.ai/code/session_01JhzYXvFtttMPvBJgjfXc62"
+    ]
+  },
+  "buildServer": {
+    "host": "192.168.50.175",
+    "user": "taigamura",
+    "sshKey": "~/.ssh/simple-bookkeeping-buildserver",
+    "repoPath": "~/dev/nibble-app",
+    "pathPrepend": "/usr/local/bin:/opt/homebrew/bin",
+    "logPath": "/tmp/nibble-build.log",
+    "artifactGlob": "build-*.ipa",
+    "buildCommand": "EAS_SKIP_AUTO_FINGERPRINT=1 EAS_BUILD_NO_EXPO_GO_WARNING=true eas build -p ios --local --profile production"
+  },
+  "submit": {
+    "command": "npx eas-cli@21.8.0 submit -p ios --profile production --path {ipa} --non-interactive"
+  }
+}
