@@ -52,6 +52,7 @@ export interface Palette {
   // Structure.
   separator: string; // hairline separator
   fill: string; // tertiary system fill -- pill/chip backgrounds
+  material: string; // translucent segmented-control fill (over photos)
   scrim: string; // dimming behind modals
   photoScrim: string; // gradient base over card photos
 
@@ -77,6 +78,7 @@ export const lightColors: Palette = {
 
   separator: 'rgba(60,60,67,0.29)',
   fill: 'rgba(120,120,128,0.12)', // tertiarySystemFill
+  material: 'rgba(120,120,128,0.28)', // translucent segmented-control fill (over photos)
   scrim: 'rgba(0,0,0,0.4)',
   photoScrim: 'rgba(0,0,0,0.55)',
 
@@ -101,6 +103,7 @@ export const darkColors: Palette = {
 
   separator: 'rgba(84,84,88,0.6)',
   fill: 'rgba(120,120,128,0.24)',
+  material: 'rgba(120,120,128,0.36)', // translucent segmented-control fill (over photos)
   scrim: 'rgba(0,0,0,0.6)',
   photoScrim: 'rgba(0,0,0,0.55)',
 

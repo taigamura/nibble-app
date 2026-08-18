@@ -19,21 +19,38 @@
  * remain, so a bare `restaurant` still renders as `Restaurant` rather than an
  * empty string.
  */
-export function formatCategory(category: string): string {
-  const words = category
+/**
+ * Splits a category/tag slug into its words and drops the trailing generic
+ * `restaurant` token (unless it's the only word), shared by the display
+ * helpers below so they humanize slugs identically.
+ */
+function slugWords(slug: string): string[] {
+  const words = slug
     .trim()
     .split(/[_\-\s]+/)
     .filter(Boolean);
-  if (words.length === 0) return '';
 
   // Drop the generic "restaurant" suffix when it's not the only word, so
-  // "Japanese Izakaya Restaurant" reads as "Japanese Izakaya".
-  const trimmed =
-    words.length > 1 && words[words.length - 1].toLowerCase() === 'restaurant'
-      ? words.slice(0, -1)
-      : words;
+  // "japanese izakaya restaurant" reads as "japanese izakaya".
+  return words.length > 1 && words[words.length - 1].toLowerCase() === 'restaurant'
+    ? words.slice(0, -1)
+    : words;
+}
 
-  return trimmed
+export function formatCategory(category: string): string {
+  return slugWords(category)
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+}
+
+/**
+ * Humanizes a category/tag slug into a lowercase phrase, for inline use inside
+ * a sentence (e.g. the "Because you like ..." reason pill), where Title Case
+ * would read as shouting. `japanese_restaurant` -> `japanese`,
+ * `cocktail-bar` -> `cocktail bar`, `minimal` -> `minimal`.
+ */
+export function humanizeTag(tag: string): string {
+  return slugWords(tag)
+    .map((word) => word.toLowerCase())
     .join(' ');
 }

@@ -1,3 +1,4 @@
+import { humanizeTag } from '../format';
 import type { Place, TasteVector } from './types';
 
 /**
@@ -13,7 +14,10 @@ export function whySurfaced(vector: TasteVector, place: Place, limit = 2): strin
     .filter((entry) => entry.weight > 0)
     .sort((a, b) => b.weight - a.weight)
     .slice(0, limit)
-    .map((entry) => entry.signal);
+    // Humanize the raw slug (e.g. `japanese_restaurant` -> `japanese`) so the
+    // reason reads as a sentence, never an internal token. Lowercase because
+    // it's mid-sentence.
+    .map((entry) => humanizeTag(entry.signal));
 
   if (matches.length === 0) return undefined;
   return `Because you like ${matches.join(' + ')}`;
