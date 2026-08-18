@@ -104,23 +104,29 @@ describe('SwipeScreen empty-deck decision card', () => {
 });
 
 describe('SwipeScreen guidance (design)', () => {
-  it('labels every bottom button so its action is legible without guessing', async () => {
+  // The action controls now live on the card's docked segmented bar (rendered
+  // by Card), relabeled Save / Been / Not for me. They carry the gesture
+  // mapping via accessibilityHint rather than a standalone visible hint line.
+  it("labels the card's action segments so each action is legible", async () => {
     const renderer = await renderSwipe();
-    const text = allText(renderer);
-    for (const label of ['Nope', 'Undo', 'Been', 'Want']) {
-      expect(text).toContain(label);
+    for (const label of ['Save', 'Been', 'Not for me']) {
+      expect(renderer.root.findAllByProps({ accessibilityLabel: label }).length).toBeGreaterThan(0);
     }
   });
 
-  // The directional gesture mapping is conveyed per-button via
-  // accessibilityHint (below) rather than a standalone visible hint line.
-  it('gives each action button an accessibility hint describing its gesture', async () => {
+  it('gives each action segment an accessibility hint describing its gesture', async () => {
     const renderer = await renderSwipe();
-    const nope = renderer.root.findByProps({ accessibilityLabel: 'Nope' });
+    const nope = renderer.root.findByProps({ accessibilityLabel: 'Not for me' });
     expect(nope.props.accessibilityHint).toMatch(/left/i);
     const been = renderer.root.findByProps({ accessibilityLabel: 'Been' });
     expect(been.props.accessibilityHint).toMatch(/up/i);
-    const want = renderer.root.findByProps({ accessibilityLabel: 'Want' });
-    expect(want.props.accessibilityHint).toMatch(/right/i);
+    const save = renderer.root.findByProps({ accessibilityLabel: 'Save' });
+    expect(save.props.accessibilityHint).toMatch(/right/i);
+  });
+
+  it('shows Undo in the header only once there is something to undo', async () => {
+    const renderer = await renderSwipe();
+    // Fresh deck: nothing swiped yet, so no Undo affordance.
+    expect(renderer.root.findAll((n) => n.props.accessibilityLabel === 'Undo')).toHaveLength(0);
   });
 });

@@ -1,5 +1,6 @@
-import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
-import { Animated, Image, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, Image, PanResponder, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 
 import type { Place, SwipeAction } from '../taste-engine';
 import { radius, shadow, spacing, type Palette, type TypeRamp } from '../theme';
@@ -11,6 +12,18 @@ import { Icon } from './Icon';
 
 const SWIPE_THRESHOLD = 120;
 const OFF_SCREEN_DISTANCE = 600;
+/** Max opacity of the directional edge-tint: a hint, never a fill. */
+const TINT_MAX = 0.45;
+
+/** Animated LinearGradient so the wash's opacity can be driven by the drag. */
+const AnimatedGradient = Animated.createAnimatedComponent(LinearGradient);
+
+/** A fully-transparent variant of a `#RRGGBB` token (appends a `00` alpha byte),
+ * so the gradient fades to the same hue at zero alpha rather than bleeding
+ * through black — which a `color → 'transparent'` stop does on some platforms. */
+function fadeOut(hex: string): string {
+  return `${hex}00`;
+}
 
 /** Projects where a flick "wants to end up" beyond the finger-release point,
  * given its release velocity (px/s) and an exponential decay constant.
@@ -29,16 +42,18 @@ function galleryFor(place: Place): string[] {
   return cleaned.length > 0 ? cleaned : [place.photoUrl];
 }
 
-export interface CardHandle {
-  /** Plays the fly-off animation for a tap-button action, then fires onSwiped. */
-  animateOut: (action: SwipeAction) => void;
-}
-
 interface CardProps {
   place: Place;
   onSwiped: (action: SwipeAction) => void;
   /** Opens the place-detail screen for this card. Omitted for the non-interactive card behind it. */
   onInfoPress?: (place: Place) => void;
+  /**
+   * The taste-engine explanation for why this place surfaced (from
+   * `whySurfaced`). Rendered as the "why" pill above the name; omit/undefined
+   * to render nothing. Computed at the SwipeScreen call site so `Card` stays
+   * free of engine imports.
+   */
+  reason?: string;
 }
 
 function directionFor(dx: number, dy: number): SwipeAction | null {
@@ -59,7 +74,7 @@ function targetFor(action: SwipeAction): { x: number; y: number } {
   }
 }
 
-export const Card = forwardRef<CardHandle, CardProps>(({ place, onSwiped, onInfoPress }, ref) => {
+export function Card({ place, onSwiped, onInfoPress, reason }: CardProps) {
   const { colors, type } = useTheme();
   const styles = useMemo(() => makeStyles(colors, type), [colors, type]);
   const position = useRef(new Animated.ValueXY()).current;
@@ -165,8 +180,6 @@ export const Card = forwardRef<CardHandle, CardProps>(({ place, onSwiped, onInfo
     }).start(finish);
   };
 
-  useImperativeHandle(ref, () => ({ animateOut: (action) => flyOut(action) }));
-
   const panResponder = useRef(
     PanResponder.create({
       // Reset the drag flag at the very start of every touch. Capture fires
@@ -229,14 +242,24 @@ export const Card = forwardRef<CardHandle, CardProps>(({ place, onSwiped, onInfo
     })
   ).current;
 
-  const rotate = position.x.interpolate({
-    inputRange: [-OFF_SCREEN_DISTANCE, 0, OFF_SCREEN_DISTANCE],
-    outputRange: ['-15deg', '0deg', '15deg'],
-  });
+  // Softened from ±15° — the strong tilt read as a Tinder card-throw. ±6° is
+  // enough to acknowledge the drag as physical without theatrics. (Tunable;
+  // product may want 0.) Reduced motion skips the tilt entirely.
+  const rotate = reducedMotion
+    ? '0deg'
+    : position.x.interpolate({
+        inputRange: [-OFF_SCREEN_DISTANCE, 0, OFF_SCREEN_DISTANCE],
+        outputRange: ['-6deg', '0deg', '6deg'],
+      });
 
-  // Directional guides: each stamp fades in as the drag crosses toward its
-  // threshold, so the user sees what releasing now would do before committing.
-  // want = drag right, nope = drag left, been = drag up (see `directionFor`).
+  // Directional edge-tint: a soft color wash bleeds in from the leading edge as
+  // the drag crosses toward its threshold — Apple's "hint in the direction of
+  // the gesture", not a verdict stamp. Each wash is a LinearGradient that's
+  // opaque at the leading edge and fades to zero toward the card's center, so it
+  // reads as color seeping in from the side rather than a hard-edged panel.
+  // want = drag right (blue), nope = drag left (red), been = drag up (green);
+  // see `directionFor`. Each interpolation is 0→1 clamped across 0→threshold;
+  // capTint holds the leading edge at TINT_MAX so the wash stays a hint, never a fill.
   const wantOpacity = position.x.interpolate({
     inputRange: [0, SWIPE_THRESHOLD],
     outputRange: [0, 1],
@@ -252,31 +275,6 @@ export const Card = forwardRef<CardHandle, CardProps>(({ place, onSwiped, onInfo
     outputRange: [1, 0],
     extrapolate: 'clamp',
   });
-
-  // The guide stamps grow toward their resting scale as the drag approaches
-  // its threshold, telegraphing the outcome (not just fading in). Reduced
-  // motion keeps the opacity reveal but skips this growth.
-  const wantScale = reducedMotion
-    ? 1
-    : position.x.interpolate({
-        inputRange: [0, SWIPE_THRESHOLD],
-        outputRange: [0.7, 1],
-        extrapolate: 'clamp',
-      });
-  const nopeScale = reducedMotion
-    ? 1
-    : position.x.interpolate({
-        inputRange: [-SWIPE_THRESHOLD, 0],
-        outputRange: [1, 0.7],
-        extrapolate: 'clamp',
-      });
-  const beenScale = reducedMotion
-    ? 1
-    : position.y.interpolate({
-        inputRange: [-SWIPE_THRESHOLD, 0],
-        outputRange: [1, 0.7],
-        extrapolate: 'clamp',
-      });
 
   const entranceScale = entrance.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1] });
   const entranceTranslateY = entrance.interpolate({ inputRange: [0, 1], outputRange: [6, 0] });
@@ -333,45 +331,30 @@ export const Card = forwardRef<CardHandle, CardProps>(({ place, onSwiped, onInfo
       )}
       {onInfoPress && (
         <>
-          <Animated.View
-            testID={`guide-want-${place.id}`}
-            style={[
-              styles.guide,
-              styles.guideWant,
-              {
-                opacity: wantOpacity,
-                transform: [{ rotate: '-14deg' }, { scale: wantScale }],
-                pointerEvents: 'none',
-              },
-            ]}
-          >
-            <Text style={[styles.guideText, { color: colors.want }]}>♥ WANT</Text>
-          </Animated.View>
-          <Animated.View
-            testID={`guide-nope-${place.id}`}
-            style={[
-              styles.guide,
-              styles.guideNope,
-              {
-                opacity: nopeOpacity,
-                transform: [{ rotate: '14deg' }, { scale: nopeScale }],
-                pointerEvents: 'none',
-              },
-            ]}
-          >
-            <Text style={[styles.guideText, { color: colors.nope }]}>NOPE ✕</Text>
-          </Animated.View>
-          <Animated.View
-            testID={`guide-been-${place.id}`}
-            style={[
-              styles.guideBeenRow,
-              { opacity: beenOpacity, transform: [{ scale: beenScale }], pointerEvents: 'none' },
-            ]}
-          >
-            <View style={[styles.guide, styles.guideBeen]}>
-              <Text style={[styles.guideText, { color: colors.been }]}>✓ BEEN</Text>
-            </View>
-          </Animated.View>
+          {/* want = drag right → blue gradient bleeding in from the right edge. */}
+          <AnimatedGradient
+            testID={`tint-want-${place.id}`}
+            colors={[colors.tint, fadeOut(colors.tint)]}
+            start={{ x: 1, y: 0.5 }}
+            end={{ x: 0, y: 0.5 }}
+            style={[styles.tint, styles.tintHorizontal, { opacity: capTint(wantOpacity), pointerEvents: 'none' }]}
+          />
+          {/* nope = drag left → red gradient bleeding in from the left edge. */}
+          <AnimatedGradient
+            testID={`tint-nope-${place.id}`}
+            colors={[colors.nope, fadeOut(colors.nope)]}
+            start={{ x: 0, y: 0.5 }}
+            end={{ x: 1, y: 0.5 }}
+            style={[styles.tint, styles.tintHorizontal, { opacity: capTint(nopeOpacity), pointerEvents: 'none' }]}
+          />
+          {/* been = drag up → green gradient bleeding in from the top edge. */}
+          <AnimatedGradient
+            testID={`tint-been-${place.id}`}
+            colors={[colors.been, fadeOut(colors.been)]}
+            start={{ x: 0.5, y: 0 }}
+            end={{ x: 0.5, y: 1 }}
+            style={[styles.tint, styles.tintBeen, { opacity: capTint(beenOpacity), pointerEvents: 'none' }]}
+          />
         </>
       )}
       {onInfoPress && (
@@ -384,23 +367,125 @@ export const Card = forwardRef<CardHandle, CardProps>(({ place, onSwiped, onInfo
         </Pressable>
       )}
       <View style={styles.info}>
+        {reason && (
+          <View style={styles.reasonPill}>
+            <Icon name="star" size={11} color={colors.star} />
+            <Text style={styles.reasonText} numberOfLines={1}>
+              {reason}
+            </Text>
+          </View>
+        )}
         <Text style={styles.name}>{place.name}</Text>
         <Text style={styles.meta}>
           {formatCategory(place.category)} · {place.priceBand} · ★{place.rating.toFixed(1)} ·{' '}
           {Math.round(place.distanceMeters)}m
         </Text>
       </View>
+      {onInfoPress && (
+        // Docked translucent segmented action bar over the bottom of the photo.
+        // Each segment fires the card's own `flyOut` directly, so the fly-off
+        // and `onSwiped` commit are identical to a drag-released swipe. The
+        // PanResponder only claims the gesture after >5px of movement, so a tap
+        // here is never stolen by the drag.
+        <View style={styles.actionBar}>
+          <ActionSegment
+            testID={`action-nope-${place.id}`}
+            icon="nope"
+            label="Not for me"
+            hint="Swipe left"
+            styles={styles}
+            colors={colors}
+            onPress={() => flyOut('nope')}
+          />
+          <ActionSegment
+            testID={`action-been-${place.id}`}
+            icon="been"
+            label="Been"
+            hint="Swipe up"
+            styles={styles}
+            colors={colors}
+            onPress={() => flyOut('been')}
+          />
+          <ActionSegment
+            testID={`action-want-${place.id}`}
+            icon="collection-active"
+            label="Save"
+            hint="Swipe right"
+            primary
+            styles={styles}
+            colors={colors}
+            onPress={() => flyOut('want')}
+          />
+        </View>
+      )}
     </Animated.View>
   );
-});
+}
 Card.displayName = 'Card';
+
+/** Caps a 0→1 edge-tint interpolation at TINT_MAX so the wash stays a hint. */
+function capTint(node: Animated.AnimatedInterpolation<number>) {
+  return node.interpolate({ inputRange: [0, 1], outputRange: [0, TINT_MAX] });
+}
+
+interface ActionSegmentProps {
+  testID: string;
+  icon: React.ComponentProps<typeof Icon>['name'];
+  label: string;
+  hint: string;
+  primary?: boolean;
+  styles: ReturnType<typeof makeStyles>;
+  colors: Palette;
+  onPress: () => void;
+}
+
+/** One segment of the docked action bar. Save is the single accented control
+ * (solid white pill, dark glyph); the other two are quiet neutrals. Press-down
+ * feedback is instant per HIG. */
+function ActionSegment({
+  testID,
+  icon,
+  label,
+  hint,
+  primary,
+  styles,
+  colors,
+  onPress,
+}: ActionSegmentProps) {
+  // Save's pill is solid white in both schemes, so its glyph/label must stay
+  // dark regardless of theme (colors.label flips to white in dark mode). The
+  // two neutral segments sit on the translucent material over the photo, so
+  // they read white in both schemes.
+  const glyphColor = primary ? '#1C1C1E' : colors.labelOnColor;
+  return (
+    <Pressable
+      testID={testID}
+      accessibilityLabel={label}
+      accessibilityHint={hint}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.segment,
+        primary && styles.segmentPrimary,
+        pressed && styles.segmentPressed,
+      ]}
+    >
+      <Icon name={icon} size={18} color={glyphColor} />
+      <Text style={[styles.segmentLabel, { color: glyphColor }]} numberOfLines={1}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
 
 function makeStyles(colors: Palette, type: TypeRamp) {
   return StyleSheet.create({
   card: {
+    // Inset from the deck edges so the card is a contained object rather than a
+    // full-bleed panel: a smaller top gap under the header and a larger bottom
+    // gap that clears the tab bar. Percentage insets scale with screen height.
     position: 'absolute',
-    top: 0,
-    bottom: 0,
+    top: '3%',
+    bottom: '9%',
     left: '5%',
     right: '5%',
     borderRadius: radius.xl,
@@ -445,44 +530,27 @@ function makeStyles(colors: Palette, type: TypeRamp) {
   tapZoneNext: {
     right: 0,
   },
-  guide: {
+  // Directional edge-tint gradients over the photo. Each spans the full photo
+  // area and fades from its leading edge toward center (the gradient axis is set
+  // per-direction via start/end in the JSX), so there's no hard panel edge.
+  // Colors + animated opacity are applied inline.
+  tint: {
     position: 'absolute',
-    top: spacing.xl,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    borderRadius: radius.md,
-    borderWidth: 3,
-    backgroundColor: 'rgba(255,255,255,0.85)',
+    top: 0,
   },
-  guideWant: {
-    left: spacing.xl,
-    transform: [{ rotate: '-14deg' }],
-    borderColor: colors.want,
-  },
-  guideNope: {
-    right: spacing.xl,
-    transform: [{ rotate: '14deg' }],
-    borderColor: colors.nope,
-  },
-  // Full-width row that horizontally centers the "been" stamp (an absolutely
-  // positioned child can't be centered with alignSelf, so we center via a
-  // flex row instead).
-  guideBeenRow: {
-    position: 'absolute',
-    top: spacing.xl,
+  // want/nope: full-width horizontal wash across the photo.
+  tintHorizontal: {
     left: 0,
     right: 0,
-    alignItems: 'center',
+    top: 0,
+    height: '74%',
   },
-  guideBeen: {
-    top: undefined,
-    position: 'relative',
-    borderColor: colors.been,
-  },
-  guideText: {
-    fontSize: 20,
-    fontWeight: '800',
-    letterSpacing: 1,
+  // been: top-anchored vertical wash.
+  tintBeen: {
+    left: 0,
+    right: 0,
+    top: 0,
+    height: '40%',
   },
   infoButton: {
     position: 'absolute',
@@ -506,6 +574,26 @@ function makeStyles(colors: Palette, type: TypeRamp) {
     paddingVertical: spacing.md,
     justifyContent: 'center',
   },
+  // Translucent "why" pill above the name, mirroring the Tonight spotlight's
+  // reason line so the two flows share one language.
+  reasonPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: spacing.xs,
+    paddingVertical: spacing.xs - 1,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radius.pill,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    marginBottom: spacing.sm,
+    ...(Platform.OS === 'web' ? { backdropFilter: 'blur(14px)' } : null),
+  },
+  reasonText: {
+    ...type.caption1,
+    color: colors.labelOnColor,
+    fontWeight: '600',
+    flexShrink: 1,
+  },
   name: {
     ...type.title2,
   },
@@ -513,6 +601,42 @@ function makeStyles(colors: Palette, type: TypeRamp) {
     ...type.subheadline,
     marginTop: spacing.xs,
     color: colors.secondaryLabel,
+  },
+  // Docked translucent segmented control over the bottom of the photo.
+  actionBar: {
+    position: 'absolute',
+    left: spacing.md,
+    right: spacing.md,
+    // Sits just above the info panel (photo is 74% of the card height).
+    top: '74%',
+    marginTop: -60,
+    flexDirection: 'row',
+    padding: spacing.xs - 1,
+    gap: spacing.xs,
+    borderRadius: radius.pill,
+    backgroundColor: colors.material,
+    ...(Platform.OS === 'web' ? { backdropFilter: 'blur(14px)' } : null),
+  },
+  segment: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.xs,
+    borderRadius: radius.pill,
+  },
+  // Save: the single accented control — solid white pill, dark glyph/label.
+  segmentPrimary: {
+    backgroundColor: colors.labelOnColor,
+  },
+  segmentPressed: {
+    transform: [{ scale: 0.96 }],
+  },
+  segmentLabel: {
+    ...type.footnote,
+    fontWeight: '600',
   },
   });
 }

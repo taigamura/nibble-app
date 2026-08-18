@@ -278,4 +278,12 @@ describe('whySurfaced', () => {
     const candidate = place({ id: 'p1', category: 'izakaya', tags: ['group-friendly'] });
     expect(whySurfaced({}, candidate)).toBeUndefined();
   });
+
+  it('humanizes raw category slugs instead of leaking the token', () => {
+    let graph = emptyTasteGraph();
+    graph = updateTaste(graph, swipe(place({ id: 'seed', category: 'japanese_restaurant', tags: [] }), 'been'));
+
+    const candidate = place({ id: 'p1', category: 'japanese_restaurant', tags: [] });
+    expect(whySurfaced(graph.vector, candidate)).toBe('Because you like japanese');
+  });
 });

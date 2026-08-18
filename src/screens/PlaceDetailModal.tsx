@@ -401,7 +401,10 @@ function makeStyles(colors: Palette, type: TypeRamp) {
     alignItems: 'center',
   },
   directions: {
-    backgroundColor: colors.label,
+    // Primary action: the app tint (systemBlue), not `colors.label` — label
+    // flips to white in dark mode and vanished behind the white `labelOnColor`
+    // text. Tint stays readable with white text in both schemes.
+    backgroundColor: colors.tint,
   },
   iWent: {
     backgroundColor: colors.been,

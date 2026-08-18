@@ -1,6 +1,6 @@
 import React from 'react';
 import TestRenderer, { act, type ReactTestRenderer } from 'react-test-renderer';
-import { Image, Text, View } from 'react-native';
+import { Image, View } from 'react-native';
 
 import { Card } from '../Card';
 import { lightColors } from '../../theme';
@@ -26,53 +26,94 @@ function render(element: React.ReactElement): ReactTestRenderer {
   return renderer;
 }
 
-const guideIds = ['guide-want-p1', 'guide-nope-p1', 'guide-been-p1'];
+const tintIds = ['tint-want-p1', 'tint-nope-p1', 'tint-been-p1'];
+const actionIds = ['action-want-p1', 'action-nope-p1', 'action-been-p1'];
 
-describe('Card swipe guides (design)', () => {
-  it('renders a directional guide for each swipe action on the interactive card', () => {
+function flatStyle(node: { props: { style?: unknown } }) {
+  const style = node.props.style;
+  return Array.isArray(style) ? Object.assign({}, ...style.filter(Boolean)) : style;
+}
+
+describe('Card directional edge-tint (design)', () => {
+  it('renders a directional tint for each swipe action on the interactive card', () => {
     const renderer = render(<Card place={place} onSwiped={() => {}} onInfoPress={() => {}} />);
-    for (const id of guideIds) {
+    for (const id of tintIds) {
       expect(renderer.root.findAllByProps({ testID: id }).length).toBeGreaterThan(0);
     }
   });
 
-  it('labels each guide with the action and colors it with the intent token', () => {
+  it('colors each tint with its intent token, fading to that hue at zero alpha', () => {
     const renderer = render(<Card place={place} onSwiped={() => {}} onInfoPress={() => {}} />);
-    const labelText = renderer.root
-      .findAllByType(Text)
-      .map((node) => (typeof node.props.children === 'string' ? node.props.children : ''));
-    expect(labelText.some((t) => t.includes('WANT'))).toBe(true);
-    expect(labelText.some((t) => t.includes('NOPE'))).toBe(true);
-    expect(labelText.some((t) => t.includes('BEEN'))).toBe(true);
-
-    const wantGuide = renderer.root.findByProps({ testID: 'guide-want-p1' });
-    const wantLabel = wantGuide.findByType(Text);
-    const wantStyle = Array.isArray(wantLabel.props.style)
-      ? Object.assign({}, ...wantLabel.props.style)
-      : wantLabel.props.style;
-    expect(wantStyle.color).toBe(lightColors.want);
+    // The wash is a LinearGradient: its leading-edge stop is the intent token,
+    // fading to the same hue with a `00` (transparent) alpha byte.
+    const colorsOf = (id: string) => renderer.root.findByProps({ testID: id }).props.colors;
+    expect(colorsOf('tint-want-p1')).toEqual([lightColors.tint, `${lightColors.tint}00`]);
+    expect(colorsOf('tint-nope-p1')).toEqual([lightColors.nope, `${lightColors.nope}00`]);
+    expect(colorsOf('tint-been-p1')).toEqual([lightColors.been, `${lightColors.been}00`]);
   });
 
-  it('starts every guide fully transparent so it only appears mid-drag', () => {
+  it('starts every tint fully transparent so it only appears mid-drag', () => {
     const renderer = render(<Card place={place} onSwiped={() => {}} onInfoPress={() => {}} />);
-    for (const id of guideIds) {
-      const guide = renderer.root.findByProps({ testID: id });
-      const style = Array.isArray(guide.props.style)
-        ? Object.assign({}, ...guide.props.style.filter(Boolean))
-        : guide.props.style;
+    for (const id of tintIds) {
+      const opacity = flatStyle(renderer.root.findByProps({ testID: id })).opacity;
       // Opacity is an Animated node (interpolation); its resting value is 0.
-      const opacity = style.opacity;
-      const resting = opacity && typeof opacity.__getValue === 'function' ? opacity.__getValue() : opacity;
+      const resting =
+        opacity && typeof opacity.__getValue === 'function' ? opacity.__getValue() : opacity;
       expect(resting).toBe(0);
     }
   });
 
-  it('omits guides on the non-interactive card behind the top one', () => {
+  it('omits tints on the non-interactive card behind the top one', () => {
     const renderer = render(<Card place={place} onSwiped={() => {}} />);
-    const guides = renderer.root.findAll(
-      (node) => typeof node.props.testID === 'string' && node.props.testID.startsWith('guide-')
+    const tints = renderer.root.findAll(
+      (node) => typeof node.props.testID === 'string' && node.props.testID.startsWith('tint-')
     );
-    expect(guides).toHaveLength(0);
+    expect(tints).toHaveLength(0);
+  });
+});
+
+describe('Card docked action bar (design)', () => {
+  it('renders a segment for each action on the interactive card, none behind', () => {
+    const interactive = render(<Card place={place} onSwiped={() => {}} onInfoPress={() => {}} />);
+    for (const id of actionIds) {
+      expect(interactive.root.findAllByProps({ testID: id }).length).toBeGreaterThan(0);
+    }
+
+    const behind = render(<Card place={place} onSwiped={() => {}} />);
+    const segments = behind.root.findAll(
+      (node) => typeof node.props.testID === 'string' && node.props.testID.startsWith('action-')
+    );
+    expect(segments).toHaveLength(0);
+  });
+
+  it('labels each segment and describes its gesture for accessibility', () => {
+    const renderer = render(<Card place={place} onSwiped={() => {}} onInfoPress={() => {}} />);
+    const save = renderer.root.findByProps({ accessibilityLabel: 'Save' });
+    expect(save.props.accessibilityHint).toMatch(/right/i);
+    const nope = renderer.root.findByProps({ accessibilityLabel: 'Not for me' });
+    expect(nope.props.accessibilityHint).toMatch(/left/i);
+    const been = renderer.root.findByProps({ accessibilityLabel: 'Been' });
+    expect(been.props.accessibilityHint).toMatch(/up/i);
+  });
+
+  it('accents only Save (solid pill) and keeps the other two neutral', () => {
+    const renderer = render(<Card place={place} onSwiped={() => {}} onInfoPress={() => {}} />);
+    // Pressable style is a function of press state; resolve it at rest.
+    const resolve = (label: string) => {
+      const style = renderer.root.findByProps({ accessibilityLabel: label }).props.style;
+      const arr = typeof style === 'function' ? style({ pressed: false }) : style;
+      return Array.isArray(arr) ? Object.assign({}, ...arr.filter(Boolean)) : arr;
+    };
+    expect(resolve('Save').backgroundColor).toBe(lightColors.labelOnColor);
+    expect(resolve('Not for me').backgroundColor).toBeUndefined();
+    expect(resolve('Been').backgroundColor).toBeUndefined();
+  });
+
+  it('wires each segment to a press handler (taps drive flyOut → onSwiped)', () => {
+    const renderer = render(<Card place={place} onSwiped={() => {}} onInfoPress={() => {}} />);
+    for (const id of actionIds) {
+      expect(typeof renderer.root.findByProps({ testID: id }).props.onPress).toBe('function');
+    }
   });
 });
 

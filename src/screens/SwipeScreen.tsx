@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Card, type CardHandle } from '../components/Card';
+import { Card } from '../components/Card';
 import { RatingPrompt } from '../components/RatingPrompt';
 import { DEFAULT_RADIUS_METERS, RADIUS_OPTIONS_METERS } from '../config/areas';
 import type { DeckContext, EnrichmentProvider, GeoPoint, PlacesProvider, Store } from '../providers/types';
@@ -11,6 +11,7 @@ import {
   emptyTasteGraph,
   rankDeck,
   updateTaste,
+  whySurfaced,
 } from '../taste-engine';
 import type { Place, SwipeAction, SwipeEvent, TasteGraph } from '../taste-engine';
 import { DeckContextControl } from './DeckContextControl';
@@ -63,7 +64,6 @@ export function SwipeScreen({
   // can flood the deck with previously-skipped places.
   const [nopesReset, setNopesReset] = useState(false);
   const [resetSeenArmed, setResetSeenArmed] = useState(false);
-  const cardRef = useRef<CardHandle>(null);
   // `seed` is meant to be stable for the life of the session (that's what
   // makes the 70/30 blend "injected" rather than reshuffled on every
   // render). Falling back to `Date.now()` as a default *parameter* would
@@ -116,6 +116,10 @@ export function SwipeScreen({
 
   const topPlace = deck[0];
   const nextPlace = deck[1];
+  // The taste-engine explanation for the top card, computed here (the graph
+  // lives in this screen) and passed down so `Card` stays free of engine
+  // imports. `undefined` when there's no positive signal yet → no pill.
+  const topReason = topPlace ? whySurfaced(graph.vector, topPlace) : undefined;
 
   const commitSwipe = (place: Place, action: SwipeAction) => {
     const event: SwipeEvent = { place, action, timestamp: Date.now() };
@@ -129,11 +133,6 @@ export function SwipeScreen({
     if (action === 'been') {
       setPendingRating(place);
     }
-  };
-
-  const handleButtonPress = (action: SwipeAction) => {
-    if (!topPlace) return;
-    cardRef.current?.animateOut(action);
   };
 
   const handleRate = (rating: number) => {
@@ -190,14 +189,26 @@ export function SwipeScreen({
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Pressable
-          accessibilityLabel="Change deck area"
-          style={({ pressed }) => [styles.areaButton, pressed && styles.pressed]}
-          onPress={() => setContextControlVisible(true)}
-        >
-          <Icon name="location" size={13} color={colors.tint} style={styles.areaButtonIcon} />
-          <Text style={styles.areaButtonText}>{radiusLabel}</Text>
-        </Pressable>
+        <View style={styles.headerLeft}>
+          {undoStack.length > 0 && (
+            <Pressable
+              accessibilityLabel="Undo"
+              accessibilityHint="Undo your last swipe"
+              style={({ pressed }) => [styles.headerButton, pressed && styles.pressed]}
+              onPress={handleUndo}
+            >
+              <Icon name="undo" size={20} color={colors.tint} />
+            </Pressable>
+          )}
+          <Pressable
+            accessibilityLabel="Change deck area"
+            style={({ pressed }) => [styles.areaButton, pressed && styles.pressed]}
+            onPress={() => setContextControlVisible(true)}
+          >
+            <Icon name="location" size={13} color={colors.tint} style={styles.areaButtonIcon} />
+            <Text style={styles.areaButtonText}>{radiusLabel}</Text>
+          </Pressable>
+        </View>
         <SettingsButton onPress={onOpenSettings} />
       </View>
       <View style={styles.deck}>
@@ -252,58 +263,12 @@ export function SwipeScreen({
         {topPlace && (
           <Card
             key={topPlace.id}
-            ref={cardRef}
             place={topPlace}
+            reason={topReason}
             onSwiped={(action) => commitSwipe(topPlace, action)}
             onInfoPress={setDetailPlace}
           />
         )}
-      </View>
-      <View style={styles.controls}>
-        <View style={styles.controlItem}>
-          <Pressable
-            accessibilityLabel="Undo"
-            accessibilityHint="Undo your last swipe"
-            style={({ pressed }) => [styles.button, styles.undo, pressed && styles.buttonPressed]}
-            onPress={handleUndo}
-          >
-            <Icon name="undo" size={24} color={colors.secondaryLabel} />
-          </Pressable>
-          <Text style={styles.controlLabel}>Undo</Text>
-        </View>
-        <View style={styles.controlItem}>
-          <Pressable
-            accessibilityLabel="Nope"
-            accessibilityHint="Not interested — swipe left"
-            style={({ pressed }) => [styles.button, styles.nope, pressed && styles.buttonPressed]}
-            onPress={() => handleButtonPress('nope')}
-          >
-            <Icon name="nope" size={28} color={colors.nope} />
-          </Pressable>
-          <Text style={styles.controlLabel}>Nope</Text>
-        </View>
-        <View style={styles.controlItem}>
-          <Pressable
-            accessibilityLabel="Been"
-            accessibilityHint="Been here — swipe up"
-            style={({ pressed }) => [styles.button, styles.been, pressed && styles.buttonPressed]}
-            onPress={() => handleButtonPress('been')}
-          >
-            <Icon name="been" size={28} color={colors.been} />
-          </Pressable>
-          <Text style={styles.controlLabel}>Been</Text>
-        </View>
-        <View style={styles.controlItem}>
-          <Pressable
-            accessibilityLabel="Want"
-            accessibilityHint="Want to go — swipe right"
-            style={({ pressed }) => [styles.button, styles.want, pressed && styles.buttonPressed]}
-            onPress={() => handleButtonPress('want')}
-          >
-            <Icon name="want" size={26} color={colors.want} />
-          </Pressable>
-          <Text style={styles.controlLabel}>Want</Text>
-        </View>
       </View>
       {pendingRating && (
         <RatingPrompt
@@ -343,6 +308,19 @@ function makeStyles(colors: Palette, type: TypeRamp) {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.sm,
     paddingBottom: spacing.sm,
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  headerButton: {
+    width: 32,
+    height: 32,
+    borderRadius: radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.fill,
   },
   areaButton: {
     flexDirection: 'row',
@@ -428,52 +406,6 @@ function makeStyles(colors: Palette, type: TypeRamp) {
     bottom: 0,
     transform: [{ scale: 0.94 }],
     opacity: 0.5,
-  },
-  controls: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'flex-start',
-    gap: spacing.xl,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.lg,
-  },
-  controlItem: {
-    alignItems: 'center',
-    gap: spacing.xs + 2,
-  },
-  controlLabel: {
-    ...type.caption2,
-    fontWeight: '600',
-    color: colors.secondaryLabel,
-  },
-  button: {
-    width: 60,
-    height: 60,
-    borderRadius: radius.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.background,
-    ...shadow.sm,
-  },
-  buttonPressed: {
-    transform: [{ scale: 0.92 }],
-    opacity: 0.9,
-  },
-  nope: {},
-  been: {},
-  want: {},
-  undo: { backgroundColor: colors.fill, shadowColor: 'transparent', elevation: 0, boxShadow: 'none' },
-  buttonText: {
-    fontSize: 26,
-    fontWeight: '600',
-    lineHeight: 30,
-  },
-  undoText: {
-    fontSize: 22,
-    color: colors.secondaryLabel,
-  },
-  wantText: {
-    fontSize: 24,
   },
   });
 }
