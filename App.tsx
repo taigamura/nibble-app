@@ -1,6 +1,6 @@
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Animated, Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
 
 import { AppShell } from './src/components/AppShell';
 import { Icon } from './src/components/Icon';
@@ -303,7 +303,9 @@ function AppContent() {
     <AppShell>
       {onboarded ? (
         <>
-          <View style={styles.screen}>
+          {/* Top-only safe area: this view fills down to the tab bar without
+              touching the bottom edge, so RN insets only the top (notch). */}
+          <SafeAreaView style={styles.screen}>
             {activeTab === 'swipe' ? (
               <SwipeScreen
                 placesProvider={placesProvider}
@@ -324,7 +326,12 @@ function AppContent() {
                 onOpenSettings={() => setSettingsVisible(true)}
               />
             )}
-          </View>
+          </SafeAreaView>
+          {/* Bottom-only safe area: sits at the physical bottom edge, so RN
+              insets only the bottom (home indicator). Its background is the tab
+              bar color, so the bar visually reaches the very bottom of the
+              screen instead of floating above a strip of canvas. */}
+          <SafeAreaView style={styles.tabBarSafe}>
           <View style={styles.tabBar}>
             <Pressable
               accessibilityLabel="Swipe tab"
@@ -363,14 +370,20 @@ function AppContent() {
               </Text>
             </Pressable>
           </View>
+          </SafeAreaView>
         </>
       ) : (
-        <OnboardingScreen
-          placesProvider={placesProvider}
-          store={store}
-          requestLocation={getUserLocation}
-          onComplete={handleOnboardingComplete}
-        />
+        // Onboarding owns the whole screen (no tab bar), so a single all-edges
+        // safe area keeps its header clear of the notch and its Continue button
+        // clear of the home indicator.
+        <SafeAreaView style={styles.screen}>
+          <OnboardingScreen
+            placesProvider={placesProvider}
+            store={store}
+            requestLocation={getUserLocation}
+            onComplete={handleOnboardingComplete}
+          />
+        </SafeAreaView>
       )}
       <SignInPromptModal
         visible={signInPromptVisible}
@@ -405,6 +418,15 @@ function makeStyles(colors: Palette, type: TypeRamp) {
   return StyleSheet.create({
     screen: {
       flex: 1,
+      // Matches the screens' canvas so the top safe-area strip (behind the
+      // status bar) blends with the content below it.
+      backgroundColor: colors.groupedBackground,
+    },
+    // Carries the tab bar's background into the bottom safe-area inset so the
+    // bar reaches the physical screen edge. See the render tree for why this is
+    // a separate SafeAreaView from the screen content.
+    tabBarSafe: {
+      backgroundColor: colors.background,
     },
     tabBar: {
       flexDirection: 'row',

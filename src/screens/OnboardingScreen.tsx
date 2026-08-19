@@ -327,7 +327,10 @@ function makeStyles(colors: Palette, type: TypeRamp) {
     bottom: spacing.xl,
   },
   done: {
-    backgroundColor: colors.label,
+    // Primary CTA on the app tint (systemBlue), not `colors.label` — label
+    // flips to white in dark mode and the button vanished behind its white
+    // `labelOnColor` text. Same fix as the Maps button in PlaceDetailModal.
+    backgroundColor: colors.tint,
     borderRadius: radius.pill,
     paddingVertical: spacing.lg,
     alignItems: 'center',

@@ -1,5 +1,17 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Image, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  Animated,
+  Dimensions,
+  Image,
+  Linking,
+  Modal,
+  PanResponder,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 
 import { Icon } from '../components/Icon';
 import { formatCategory } from '../format';
@@ -129,6 +141,54 @@ export function PlaceDetailModal({
   const [draftRating, setDraftRating] = useState<number>(rating ?? 0);
   const [draftTags, setDraftTags] = useState<string[]>(reviewTags ?? []);
 
+  // Drag-to-dismiss: the sheet follows a downward drag on its grabber handle
+  // and closes once pulled past a distance/velocity threshold, matching the
+  // native iOS sheet gesture. `onCloseRef` keeps the (stable) PanResponder
+  // reading the latest onClose without re-creating the responder each render.
+  const screenHeight = Dimensions.get('window').height;
+  const translateY = useRef(new Animated.Value(0)).current;
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  const panResponder = useRef(
+    PanResponder.create({
+      // Only claim a clearly-downward drag, so a tap on the handle still passes
+      // through and horizontal movement never hijacks the gesture.
+      onMoveShouldSetPanResponder: (_evt, gesture) =>
+        gesture.dy > 6 && Math.abs(gesture.dy) > Math.abs(gesture.dx),
+      onPanResponderMove: (_evt, gesture) => {
+        // Follow downward drags 1:1; ignore upward pull (the sheet is already
+        // at rest at the top).
+        translateY.setValue(Math.max(0, gesture.dy));
+      },
+      onPanResponderRelease: (_evt, gesture) => {
+        if (gesture.dy > 120 || gesture.vy > 0.8) {
+          haptics.selection();
+          Animated.timing(translateY, {
+            toValue: screenHeight,
+            duration: 200,
+            useNativeDriver: true,
+          }).start(() => {
+            translateY.setValue(0);
+            onCloseRef.current();
+          });
+        } else {
+          Animated.spring(translateY, {
+            toValue: 0,
+            useNativeDriver: true,
+            ...spring.snappy,
+          }).start();
+        }
+      },
+    })
+  ).current;
+
+  // Snap the sheet back to its resting position whenever a new place opens, so
+  // a prior drag-close never leaves the next open translated off-screen.
+  useEffect(() => {
+    translateY.setValue(0);
+  }, [place?.id, translateY]);
+
   // Reset the draft whenever a different place (or its saved review) opens,
   // so the stars/chips reflect this place rather than the last one reviewed.
   useEffect(() => {
@@ -157,7 +217,10 @@ export function PlaceDetailModal({
   return (
     <Modal visible={place !== null} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.backdrop}>
-        <View style={styles.sheet}>
+        <Animated.View style={[styles.sheet, { transform: [{ translateY }] }]}>
+          <View style={styles.grabberZone} {...panResponder.panHandlers}>
+            <View style={styles.grabber} />
+          </View>
           {place && (
             <ScrollView>
               <Image source={{ uri: place.photoUrl }} style={styles.photo} />
@@ -270,7 +333,7 @@ export function PlaceDetailModal({
           <Pressable accessibilityLabel="Close place detail" style={styles.close} onPress={onClose}>
             <Text style={styles.closeText}>Close</Text>
           </Pressable>
-        </View>
+        </Animated.View>
       </View>
     </Modal>
   );
@@ -289,6 +352,20 @@ function makeStyles(colors: Palette, type: TypeRamp) {
     borderTopLeftRadius: radius.xl,
     borderTopRightRadius: radius.xl,
     overflow: 'hidden',
+  },
+  // The drag target at the top of the sheet. Kept a touch taller than the
+  // grabber pill itself so there's a comfortable area to start the pull-down.
+  grabberZone: {
+    alignItems: 'center',
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.xs,
+    backgroundColor: colors.background,
+  },
+  grabber: {
+    width: 36,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: colors.tertiaryLabel,
   },
   photo: {
     width: '100%',
