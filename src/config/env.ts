@@ -4,13 +4,41 @@
  * falls back to the in-memory fixtures when any are missing so the app
  * stays runnable without deployment secrets.
  */
+import Constants from 'expo-constants';
+
 export interface AppConfig {
   googlePlacesApiKey?: string;
   supabaseUrl?: string;
   supabaseAnonKey?: string;
 }
 
-export function loadConfig(env: Record<string, string | undefined> = process.env): AppConfig {
+function nonEmpty(value: unknown): string | undefined {
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
+/**
+ * The default source for {@link loadConfig}: the backend keys baked into the
+ * app manifest's `extra` at build time (see `app.config.js`), falling back to
+ * the statically-inlined `process.env.EXPO_PUBLIC_*` values for Metro-served
+ * dev builds (Expo Go, `expo start`).
+ *
+ * The `extra` path is what makes EAS *local* release builds work: at Metro
+ * bundle time `process.env.EXPO_PUBLIC_*` is undefined there (the hosted env
+ * vars don't reach Xcode's bundle phase), so it would inline as `undefined`.
+ * `app.config.js` captures the values earlier, where they ARE present.
+ */
+function manifestEnv(): Record<string, string | undefined> {
+  const extra = (Constants.expoConfig?.extra ?? {}) as Record<string, unknown>;
+  return {
+    EXPO_PUBLIC_GOOGLE_PLACES_API_KEY:
+      nonEmpty(extra.googlePlacesApiKey) ?? process.env.EXPO_PUBLIC_GOOGLE_PLACES_API_KEY,
+    EXPO_PUBLIC_SUPABASE_URL: nonEmpty(extra.supabaseUrl) ?? process.env.EXPO_PUBLIC_SUPABASE_URL,
+    EXPO_PUBLIC_SUPABASE_ANON_KEY:
+      nonEmpty(extra.supabaseAnonKey) ?? process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
+  };
+}
+
+export function loadConfig(env: Record<string, string | undefined> = manifestEnv()): AppConfig {
   return {
     googlePlacesApiKey: env.EXPO_PUBLIC_GOOGLE_PLACES_API_KEY,
     supabaseUrl: env.EXPO_PUBLIC_SUPABASE_URL,

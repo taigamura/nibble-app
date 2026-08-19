@@ -1,6 +1,16 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Image, PanResponder, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Animated, {
+  Extrapolation,
+  interpolate,
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
 
 import type { Place, SwipeAction } from '../taste-engine';
 import { radius, shadow, spacing, type Palette, type TypeRamp } from '../theme';
@@ -12,10 +22,17 @@ import { Icon } from './Icon';
 
 const SWIPE_THRESHOLD = 120;
 const OFF_SCREEN_DISTANCE = 600;
+/** Minimum finger travel (px) before the pan claims the gesture, so a tap on the
+ * gallery zones or action bar still registers as a tap, not a drag. */
+const PAN_ACTIVATE_DISTANCE = 5;
+/** A deliberate flick can commit from under the threshold, but only above this
+ * throw speed (px/s ~= 500) so a slow or small drag just springs back. */
+const FLICK_MIN_PX_PER_SEC = 500;
 /** Max opacity of the directional edge-tint: a hint, never a fill. */
 const TINT_MAX = 0.45;
 
-/** Animated LinearGradient so the wash's opacity can be driven by the drag. */
+/** Animated LinearGradient so the wash's opacity can be driven by the drag on
+ * the UI thread. */
 const AnimatedGradient = Animated.createAnimatedComponent(LinearGradient);
 
 /** A fully-transparent variant of a `#RRGGBB` token (appends a `00` alpha byte),
@@ -57,6 +74,7 @@ interface CardProps {
 }
 
 function directionFor(dx: number, dy: number): SwipeAction | null {
+  'worklet';
   if (dy < -SWIPE_THRESHOLD && Math.abs(dy) > Math.abs(dx)) return 'been';
   if (dx > SWIPE_THRESHOLD) return 'want';
   if (dx < -SWIPE_THRESHOLD) return 'nope';
@@ -77,27 +95,26 @@ function targetFor(action: SwipeAction): { x: number; y: number } {
 export function Card({ place, onSwiped, onInfoPress, reason }: CardProps) {
   const { colors, type } = useTheme();
   const styles = useMemo(() => makeStyles(colors, type), [colors, type]);
-  const position = useRef(new Animated.ValueXY()).current;
   const reducedMotion = useReducedMotion();
   // Only the interactive (top) card breathes in on mount; the non-interactive
   // card behind it renders static (no entrance animation).
   const isInteractive = onInfoPress != null;
-  const entrance = useRef(new Animated.Value(isInteractive && !reducedMotion ? 0 : 1)).current;
-  // Tracks the last swipe direction the drag has crossed into, so the
-  // selection haptic fires once per threshold crossing, not every move frame.
-  const lastCrossedRef = useRef<SwipeAction | null>(null);
+
+  // Drag translation, driven on the UI thread by the pan gesture below.
+  const translateX = useSharedValue(0);
+  const translateY = useSharedValue(0);
+  // 0 → 1 entrance progress; starts settled for the non-interactive back card.
+  const entrance = useSharedValue(isInteractive && !reducedMotion ? 0 : 1);
+  // Last swipe direction the drag has crossed into, so the selection haptic
+  // fires once per threshold crossing (in the gesture worklet), not every frame.
+  const lastCrossed = useSharedValue<SwipeAction | null>(null);
+  // Guards the fly-out completion so `onSwiped` fires exactly once even though
+  // both axis springs report completion.
+  const fired = useSharedValue(false);
 
   useEffect(() => {
     if (!isInteractive || reducedMotion) return;
-    const anim = Animated.spring(entrance, {
-      ...spring.standard,
-      toValue: 1,
-      useNativeDriver: false,
-    });
-    anim.start();
-    // Stop on unmount so a card that's swiped/replaced quickly doesn't keep
-    // ticking its entrance spring (and firing state updates) after teardown.
-    return () => anim.stop();
+    entrance.value = withSpring(1, spring.standard);
     // Entrance plays once, at mount, for the card that starts interactive.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -108,12 +125,10 @@ export function Card({ place, onSwiped, onInfoPress, reason }: CardProps) {
   const photos = galleryFor(place);
   const [photoIndex, setPhotoIndex] = useState(0);
   const showGallery = onInfoPress != null && photos.length > 1;
-  // A drag over the photo must never page the gallery. `draggingRef` is set the
-  // instant a move is detected (pan responder capture handlers below) and reset
-  // at the start of every touch, so a genuine tap pages but a swipe does not.
-  const draggingRef = useRef(false);
+  // A drag over the photo must never page the gallery. The pan gesture activates
+  // only after PAN_ACTIVATE_DISTANCE of travel and cancels any in-flight child
+  // press, so a genuine tap pages but a swipe drags the card without paging.
   const step = (delta: number) => {
-    if (draggingRef.current) return;
     setPhotoIndex((current) => (current + delta + photos.length) % photos.length);
   };
 
@@ -132,171 +147,149 @@ export function Card({ place, onSwiped, onInfoPress, reason }: CardProps) {
     warm(photos[(photoIndex - 1 + photos.length) % photos.length]);
   }, [photoIndex, showGallery, photos]);
 
-  // The PanResponder below is created once (via useRef) and its handlers
-  // close over whatever `flyOut` existed at that first render. Routing the
-  // actual callback through a ref that's reassigned every render — instead
-  // of calling the `onSwiped` prop directly — ensures a drag-released swipe
-  // always fires the *current* handler (and thus the current taste graph),
-  // not a stale one from mount, even if this Card instance outlives a
+  // Route the swipe commit through a ref reassigned every render — instead of
+  // capturing the `onSwiped` prop in the (stable) gesture — so a drag-released
+  // swipe always fires the *current* handler (and thus the current taste
+  // graph), not a stale one from mount, even if this Card instance outlives a
   // parent re-render (e.g. an Undo elsewhere in the deck).
   const onSwipedRef = useRef(onSwiped);
   onSwipedRef.current = onSwiped;
 
-  const flyOut = (action: SwipeAction, velocity: { vx: number; vy: number } = { vx: 0, vy: 0 }) => {
+  const fireSelectionHaptic = () => haptics.selection();
+
+  const flyOut = (action: SwipeAction, vx = 0, vy = 0) => {
     haptics.impact('medium');
     const target = targetFor(action);
+    const commit = () => onSwipedRef.current(action);
+    fired.value = false;
 
     if (reducedMotion) {
-      Animated.timing(position, {
-        toValue: target,
-        duration: REDUCED_MOTION_DURATION,
-        useNativeDriver: false,
-      }).start(() => onSwipedRef.current(action));
+      translateX.value = withTiming(target.x, { duration: REDUCED_MOTION_DURATION });
+      translateY.value = withTiming(target.y, { duration: REDUCED_MOTION_DURATION }, (finished) => {
+        if (finished && !fired.value) {
+          fired.value = true;
+          runOnJS(commit)();
+        }
+      });
       return;
     }
 
-    // Two independent 1D springs (not one 2D spring) so each axis settles on
-    // its own timeline -- a single ValueXY spring desyncs when dx and dy
-    // start far apart, which reads as the card "curving" unnaturally.
-    let fired = false;
-    const finish = () => {
-      if (fired) return;
-      fired = true;
-      onSwipedRef.current(action);
+    // Two independent 1D springs (not one 2D spring) so each axis settles on its
+    // own timeline -- a single spring desyncs when dx and dy start far apart,
+    // which reads as the card "curving" unnaturally. `onSwiped` fires on the
+    // first axis to finish (guarded by `fired`).
+    const onAxisDone = (finished?: boolean) => {
+      'worklet';
+      if (finished && !fired.value) {
+        fired.value = true;
+        runOnJS(commit)();
+      }
     };
-    // PanResponder gestureState vx/vy are px/ms; Animated.spring's `velocity`
-    // wants px/s.
-    Animated.spring(position.x, {
-      ...spring.bouncy,
-      toValue: target.x,
-      velocity: velocity.vx * 1000,
-      useNativeDriver: false,
-    }).start(finish);
-    Animated.spring(position.y, {
-      ...spring.bouncy,
-      toValue: target.y,
-      velocity: velocity.vy * 1000,
-      useNativeDriver: false,
-    }).start(finish);
+    // gesture-handler reports velocity in px/s, which withSpring's `velocity`
+    // config wants directly.
+    translateX.value = withSpring(target.x, { ...spring.bouncy, velocity: vx }, onAxisDone);
+    translateY.value = withSpring(target.y, { ...spring.bouncy, velocity: vy }, onAxisDone);
   };
 
-  const panResponder = useRef(
-    PanResponder.create({
-      // Reset the drag flag at the very start of every touch. Capture fires
-      // parent-first, so this runs even for touches that land on the photo
-      // tap zones (which otherwise claim the touch on start).
-      onStartShouldSetPanResponderCapture: () => {
-        draggingRef.current = false;
-        return false;
-      },
-      // Steal the gesture from the photo tap zones as soon as the finger moves,
-      // so a swipe starting over the left/right third drags the card (and
-      // cancels the tap zone's press) instead of paging the gallery.
-      onMoveShouldSetPanResponderCapture: (_, gesture) => {
-        const moved = Math.abs(gesture.dx) > 5 || Math.abs(gesture.dy) > 5;
-        if (moved) draggingRef.current = true;
-        return moved;
-      },
-      onMoveShouldSetPanResponder: (_, gesture) =>
-        Math.abs(gesture.dx) > 5 || Math.abs(gesture.dy) > 5,
-      onPanResponderMove: (evt, gesture) => {
-        const crossed = directionFor(gesture.dx, gesture.dy);
-        if (crossed && crossed !== lastCrossedRef.current) {
-          haptics.selection();
-        }
-        lastCrossedRef.current = crossed;
-        Animated.event([null, { dx: position.x, dy: position.y }], {
-          useNativeDriver: false,
-        })(evt, gesture);
-      },
-      onPanResponderRelease: (_, gesture) => {
-        lastCrossedRef.current = null;
-        const velocity = { vx: gesture.vx, vy: gesture.vy };
-        // Primary: commit when the finger let go past the position threshold.
-        let action = directionFor(gesture.dx, gesture.dy);
-        // Secondary: a *deliberate* flick can commit from under the threshold.
-        // Gate it on a real throw speed (px/ms) so a slow or small drag just
-        // springs back instead of flying off on any little movement -- the
-        // momentum projection alone is far too eager (it clears the threshold
-        // at modest speeds), so the speed gate is what keeps the deck calm.
-        if (!action) {
-          const FLICK_MIN = 0.5; // px/ms (~500 px/s): a throw, not a nudge
-          const fastX = Math.abs(gesture.vx) > FLICK_MIN;
-          const fastY = Math.abs(gesture.vy) > FLICK_MIN;
-          if (fastX || fastY) {
-            const projectedX = gesture.dx + (fastX ? project(gesture.vx * 1000) : 0);
-            const projectedY = gesture.dy + (fastY ? project(gesture.vy * 1000) : 0);
-            action = directionFor(projectedX, projectedY);
+  // Decides, on release, whether the drag commits (fly-out) or springs back.
+  // Runs on the JS thread (via runOnJS from the gesture) so it can reach the
+  // current `onSwiped` through `flyOut`. dx/dy in px, vx/vy in px/s.
+  const handleRelease = (dx: number, dy: number, vx: number, vy: number) => {
+    // Primary: commit when the finger let go past the position threshold.
+    let action = directionFor(dx, dy);
+    // Secondary: a *deliberate* flick can commit from under the threshold. Gate
+    // it on a real throw speed so a slow or small drag just springs back -- the
+    // momentum projection alone is far too eager (it clears the threshold at
+    // modest speeds), so the speed gate is what keeps the deck calm.
+    if (!action) {
+      const fastX = Math.abs(vx) > FLICK_MIN_PX_PER_SEC;
+      const fastY = Math.abs(vy) > FLICK_MIN_PX_PER_SEC;
+      if (fastX || fastY) {
+        const projectedX = dx + (fastX ? project(vx) : 0);
+        const projectedY = dy + (fastY ? project(vy) : 0);
+        action = directionFor(projectedX, projectedY);
+      }
+    }
+    if (action) {
+      flyOut(action, vx, vy);
+    } else {
+      translateX.value = withSpring(0, spring.standard);
+      translateY.value = withSpring(0, spring.standard);
+    }
+  };
+
+  // The pan gesture runs on the UI thread: `onUpdate` follows the finger and
+  // fires the crossing haptic; `onEnd` hands the release off to `handleRelease`.
+  const panGesture = useMemo(
+    () =>
+      Gesture.Pan()
+        .enabled(isInteractive)
+        .minDistance(PAN_ACTIVATE_DISTANCE)
+        .onUpdate((e) => {
+          'worklet';
+          translateX.value = e.translationX;
+          translateY.value = e.translationY;
+          const crossed = directionFor(e.translationX, e.translationY);
+          if (crossed && crossed !== lastCrossed.value) {
+            runOnJS(fireSelectionHaptic)();
           }
-        }
-        if (action) {
-          flyOut(action, velocity);
-        } else {
-          Animated.spring(position, {
-            ...spring.standard,
-            toValue: { x: 0, y: 0 },
-            useNativeDriver: false,
-          }).start();
-        }
-      },
-    })
-  ).current;
+          lastCrossed.value = crossed;
+        })
+        .onEnd((e) => {
+          'worklet';
+          lastCrossed.value = null;
+          runOnJS(handleRelease)(e.translationX, e.translationY, e.velocityX, e.velocityY);
+        }),
+    // Handlers close over stable shared values/refs; rebuild only if
+    // interactivity flips.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [isInteractive],
+  );
 
   // Softened from ±15° — the strong tilt read as a Tinder card-throw. ±6° is
-  // enough to acknowledge the drag as physical without theatrics. (Tunable;
-  // product may want 0.) Reduced motion skips the tilt entirely.
-  const rotate = reducedMotion
-    ? '0deg'
-    : position.x.interpolate({
-        inputRange: [-OFF_SCREEN_DISTANCE, 0, OFF_SCREEN_DISTANCE],
-        outputRange: ['-6deg', '0deg', '6deg'],
-      });
+  // enough to acknowledge the drag as physical without theatrics. Reduced motion
+  // skips the tilt. Entrance nudges the card up + scales it in (interactive only).
+  const cardAnimatedStyle = useAnimatedStyle(() => {
+    const rotate = reducedMotion
+      ? 0
+      : interpolate(
+          translateX.value,
+          [-OFF_SCREEN_DISTANCE, 0, OFF_SCREEN_DISTANCE],
+          [-6, 0, 6],
+          Extrapolation.CLAMP,
+        );
+    const entranceTranslateY = isInteractive ? interpolate(entrance.value, [0, 1], [6, 0]) : 0;
+    const entranceScale = isInteractive ? interpolate(entrance.value, [0, 1], [0.96, 1]) : 1;
+    return {
+      transform: [
+        { translateX: translateX.value },
+        { translateY: translateY.value + entranceTranslateY },
+        { scale: entranceScale },
+        { rotate: `${rotate}deg` },
+      ],
+    };
+  });
 
   // Directional edge-tint: a soft color wash bleeds in from the leading edge as
   // the drag crosses toward its threshold — Apple's "hint in the direction of
-  // the gesture", not a verdict stamp. Each wash is a LinearGradient that's
-  // opaque at the leading edge and fades to zero toward the card's center, so it
-  // reads as color seeping in from the side rather than a hard-edged panel.
-  // want = drag right (blue), nope = drag left (red), been = drag up (green);
-  // see `directionFor`. Each interpolation is 0→1 clamped across 0→threshold;
-  // capTint holds the leading edge at TINT_MAX so the wash stays a hint, never a fill.
-  const wantOpacity = position.x.interpolate({
-    inputRange: [0, SWIPE_THRESHOLD],
-    outputRange: [0, 1],
-    extrapolate: 'clamp',
-  });
-  const nopeOpacity = position.x.interpolate({
-    inputRange: [-SWIPE_THRESHOLD, 0],
-    outputRange: [1, 0],
-    extrapolate: 'clamp',
-  });
-  const beenOpacity = position.y.interpolate({
-    inputRange: [-SWIPE_THRESHOLD, 0],
-    outputRange: [1, 0],
-    extrapolate: 'clamp',
-  });
-
-  const entranceScale = entrance.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1] });
-  const entranceTranslateY = entrance.interpolate({ inputRange: [0, 1], outputRange: [6, 0] });
+  // the gesture", not a verdict stamp. Each wash is a LinearGradient opaque at
+  // the leading edge and fading to zero toward center. Opacity ramps 0 → TINT_MAX
+  // clamped across 0 → threshold so it stays a hint, never a fill.
+  // want = drag right (blue), nope = drag left (red), been = drag up (green).
+  const wantTintStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(translateX.value, [0, SWIPE_THRESHOLD], [0, TINT_MAX], Extrapolation.CLAMP),
+  }));
+  const nopeTintStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(translateX.value, [-SWIPE_THRESHOLD, 0], [TINT_MAX, 0], Extrapolation.CLAMP),
+  }));
+  const beenTintStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(translateY.value, [-SWIPE_THRESHOLD, 0], [TINT_MAX, 0], Extrapolation.CLAMP),
+  }));
 
   return (
-    <Animated.View
-      {...panResponder.panHandlers}
-      testID={`card-${place.id}`}
-      style={[
-        styles.card,
-        {
-          transform: [
-            ...position.getTranslateTransform(),
-            ...(isInteractive
-              ? [{ translateY: entranceTranslateY }, { scale: entranceScale }]
-              : []),
-            { rotate },
-          ],
-        },
-      ]}
-    >
-      <Image source={{ uri: photos[photoIndex] }} style={styles.photo} />
+    <GestureDetector gesture={panGesture}>
+      <Animated.View testID={`card-${place.id}`} style={[styles.card, cardAnimatedStyle]}>
+        <Image source={{ uri: photos[photoIndex] }} style={styles.photo} />
       {showGallery && (
         <>
           {/* Instagram-style segmented indicator: one segment per photo, the
@@ -337,7 +330,7 @@ export function Card({ place, onSwiped, onInfoPress, reason }: CardProps) {
             colors={[colors.tint, fadeOut(colors.tint)]}
             start={{ x: 1, y: 0.5 }}
             end={{ x: 0, y: 0.5 }}
-            style={[styles.tint, styles.tintHorizontal, { opacity: capTint(wantOpacity), pointerEvents: 'none' }]}
+            style={[styles.tint, styles.tintHorizontal, { pointerEvents: 'none' }, wantTintStyle]}
           />
           {/* nope = drag left → red gradient bleeding in from the left edge. */}
           <AnimatedGradient
@@ -345,7 +338,7 @@ export function Card({ place, onSwiped, onInfoPress, reason }: CardProps) {
             colors={[colors.nope, fadeOut(colors.nope)]}
             start={{ x: 0, y: 0.5 }}
             end={{ x: 1, y: 0.5 }}
-            style={[styles.tint, styles.tintHorizontal, { opacity: capTint(nopeOpacity), pointerEvents: 'none' }]}
+            style={[styles.tint, styles.tintHorizontal, { pointerEvents: 'none' }, nopeTintStyle]}
           />
           {/* been = drag up → green gradient bleeding in from the top edge. */}
           <AnimatedGradient
@@ -353,7 +346,7 @@ export function Card({ place, onSwiped, onInfoPress, reason }: CardProps) {
             colors={[colors.been, fadeOut(colors.been)]}
             start={{ x: 0.5, y: 0 }}
             end={{ x: 0.5, y: 1 }}
-            style={[styles.tint, styles.tintBeen, { opacity: capTint(beenOpacity), pointerEvents: 'none' }]}
+            style={[styles.tint, styles.tintBeen, { pointerEvents: 'none' }, beenTintStyle]}
           />
         </>
       )}
@@ -418,15 +411,11 @@ export function Card({ place, onSwiped, onInfoPress, reason }: CardProps) {
           />
         </View>
       )}
-    </Animated.View>
+      </Animated.View>
+    </GestureDetector>
   );
 }
 Card.displayName = 'Card';
-
-/** Caps a 0→1 edge-tint interpolation at TINT_MAX so the wash stays a hint. */
-function capTint(node: Animated.AnimatedInterpolation<number>) {
-  return node.interpolate({ inputRange: [0, 1], outputRange: [0, TINT_MAX] });
-}
 
 interface ActionSegmentProps {
   testID: string;

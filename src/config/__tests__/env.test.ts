@@ -1,3 +1,10 @@
+jest.mock('expo-constants', () => ({
+  __esModule: true,
+  default: { expoConfig: { extra: {} } },
+}));
+
+import Constants from 'expo-constants';
+
 import {
   isMisconfiguredRelease,
   isRealBackendConfigured,
@@ -21,6 +28,29 @@ describe('loadConfig', () => {
         EXPO_PUBLIC_SUPABASE_ANON_KEY: 'a',
       }),
     ).toEqual({ googlePlacesApiKey: 'g', supabaseUrl: 'u', supabaseAnonKey: 'a' });
+  });
+
+  it('defaults to the backend keys baked into the manifest extra (release builds)', () => {
+    // In an EAS local release build process.env.EXPO_PUBLIC_* is undefined at
+    // bundle time; the values survive in Constants.expoConfig.extra instead.
+    const original = Constants.expoConfig;
+    (Constants as { expoConfig: unknown }).expoConfig = {
+      extra: {
+        googlePlacesApiKey: 'g-extra',
+        supabaseUrl: 'u-extra',
+        supabaseAnonKey: 'a-extra',
+      },
+    };
+
+    try {
+      expect(loadConfig()).toEqual({
+        googlePlacesApiKey: 'g-extra',
+        supabaseUrl: 'u-extra',
+        supabaseAnonKey: 'a-extra',
+      });
+    } finally {
+      (Constants as { expoConfig: unknown }).expoConfig = original;
+    }
   });
 });
 

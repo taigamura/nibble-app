@@ -1,6 +1,7 @@
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Animated, Platform, Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { AppShell } from './src/components/AppShell';
 import { Icon } from './src/components/Icon';
@@ -96,20 +97,25 @@ export default function App() {
   // visible error instead of degrading to sample places (generic photos,
   // wrong-area results). Dev builds keep the intentional fixture fallback.
   const config = loadConfig();
+  let content: React.ReactNode;
   if (isMisconfiguredRelease(config)) {
     const missing = missingBackendKeys(config);
     console.error(
       `[nibble] Release build is missing backend configuration: ${missing.join(', ')}. ` +
         'Refusing to run on fixture data. This build must not be released.',
     );
-    return <ReleaseMisconfiguredScreen missingKeys={missing} />;
+    content = <ReleaseMisconfiguredScreen missingKeys={missing} />;
+  } else {
+    content = (
+      <ThemeProvider>
+        <AppContent />
+      </ThemeProvider>
+    );
   }
 
-  return (
-    <ThemeProvider>
-      <AppContent />
-    </ThemeProvider>
-  );
+  // GestureHandlerRootView must wrap the whole tree so the card's pan gesture
+  // (react-native-gesture-handler) receives touches on the UI thread.
+  return <GestureHandlerRootView style={guardStyles.gestureRoot}>{content}</GestureHandlerRootView>;
 }
 
 /**
@@ -136,6 +142,9 @@ function ReleaseMisconfiguredScreen({ missingKeys }: { missingKeys: string[] }) 
 }
 
 const guardStyles = StyleSheet.create({
+  gestureRoot: {
+    flex: 1,
+  },
   root: {
     flex: 1,
     backgroundColor: '#7f1d1d',
