@@ -11,6 +11,9 @@
       "supportsTablet": true,
       "bundleIdentifier": "app.nibble.mvp",
       "usesAppleSignIn": true,
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      },
       "icon": {
         "light": "./assets/icon.png",
         "dark": "./assets/icon-dark.png"
