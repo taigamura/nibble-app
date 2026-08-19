@@ -10,6 +10,8 @@
     "web": "expo start --web",
     "test": "jest",
     "typecheck": "tsc --noEmit",
+    "postinstall": "patch-package",
+    "eas-build-post-install": "patch-package",
     "ingest": "tsx --env-file-if-exists=.env scripts/ingestPlaces.ts",
     "enrich": "tsx --env-file-if-exists=.env scripts/enrichPlaces.ts",
     "seed:data": "npm run ingest && npm run enrich"
@@ -36,6 +38,7 @@
     "@types/react": "~19.2.2",
     "jest": "^29.7.0",
     "jest-expo": "~57.0.0",
+    "patch-package": "^8.0.1",
     "ts-jest": "^29.2.5",
     "tsx": "^4.23.12",
     "typescript": "~6.0.3"
