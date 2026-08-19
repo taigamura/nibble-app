@@ -60,3 +60,5 @@ target/
 .ralph_backup_*
 
 .env
+# Local EAS build artifacts
+build-*.ipa
