@@ -74,5 +74,13 @@ export function AppShell({ children }: { children?: React.ReactNode }) {
     );
   }
 
-  return <SafeAreaView style={styles.appSurface}>{children}</SafeAreaView>;
+  // Native deliberately does NOT wrap children in an all-edges SafeAreaView.
+  // Doing so padded the bottom inset with the screen canvas color, leaving the
+  // tab bar floating above a strip of groupedBackground. Instead the safe-area
+  // insets are applied per-region in App.tsx (a top SafeAreaView around the
+  // screen, a bottom one around the tab bar) so the tab bar's own background
+  // paints all the way to the physical bottom edge. RN's SafeAreaView only
+  // insets the edges its frame actually touches, which is what makes the split
+  // work.
+  return <View style={styles.appSurface}>{children}</View>;
 }

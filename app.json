@@ -23,7 +23,7 @@
       "package": "app.nibble.mvp",
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
-        "backgroundColor": "#343A86"
+        "backgroundColor": "#F2F2F7"
       },
       "permissions": [
         "android.permission.ACCESS_COARSE_LOCATION",
@@ -42,10 +42,10 @@
           "image": "./assets/icon.png",
           "imageWidth": 180,
           "resizeMode": "contain",
-          "backgroundColor": "#343A86",
+          "backgroundColor": "#F2F2F7",
           "dark": {
             "image": "./assets/icon-dark.png",
-            "backgroundColor": "#16183A"
+            "backgroundColor": "#000000"
           }
         }
       ],

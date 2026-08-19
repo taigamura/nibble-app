@@ -122,8 +122,10 @@ export function SettingsScreen({
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <View style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Settings</Text>
+        {/* Slim top bar carrying only Done; the page title lives in the scroll
+            as a large title, the iOS grouped-settings idiom. This keeps the top
+            from feeling heavy and empty. */}
+        <View style={styles.topBar}>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Close settings"
@@ -136,8 +138,10 @@ export function SettingsScreen({
         </View>
 
         <ScrollView contentContainerStyle={styles.scroll}>
+          <Text style={styles.largeTitle}>Settings</Text>
+
           {/* Appearance */}
-          <Text style={styles.sectionHeader}>APPEARANCE</Text>
+          <Text style={[styles.sectionHeader, styles.firstSectionHeader]}>APPEARANCE</Text>
           <View style={styles.card}>
             <View style={styles.segment} accessibilityRole="radiogroup">
               {APPEARANCE_OPTIONS.map((opt) => {
@@ -277,26 +281,26 @@ function makeStyles(colors: Palette, type: TypeRamp) {
       flex: 1,
       backgroundColor: colors.groupedBackground,
     },
-    header: {
+    topBar: {
       flexDirection: 'row',
       alignItems: 'center',
-      justifyContent: 'space-between',
+      justifyContent: 'flex-end',
       paddingHorizontal: GUTTER,
-      paddingVertical: spacing.md,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: colors.separator,
-      backgroundColor: colors.background,
-    },
-    headerTitle: {
-      ...type.headline,
+      paddingTop: spacing.md,
+      paddingBottom: spacing.xs,
     },
     headerDone: {
       ...type.body,
       color: colors.tint,
       fontWeight: '600',
     },
+    largeTitle: {
+      ...type.largeTitle,
+      marginLeft: spacing.xs,
+      marginBottom: spacing.sm,
+    },
     scroll: {
-      padding: GUTTER,
+      paddingHorizontal: GUTTER,
       paddingBottom: spacing.xxxl,
     },
     sectionHeader: {
@@ -305,6 +309,11 @@ function makeStyles(colors: Palette, type: TypeRamp) {
       marginTop: spacing.xl,
       marginBottom: spacing.sm,
       marginLeft: spacing.xs,
+    },
+    // The first header sits right under the large title, so it needs far less
+    // top gap than the inter-section headers below it.
+    firstSectionHeader: {
+      marginTop: spacing.sm,
     },
     card: {
       backgroundColor: colors.background,
