@@ -19,6 +19,7 @@
   "submit": {
     "production": {
       "ios": {
+        "ascAppId": "6802946247",
         "ascApiKeyPath": "/home/taigamura/.appstoreconnect/keys/AuthKey_FM2QG63KF9.p8",
         "ascApiKeyId": "FM2QG63KF9",
         "ascApiKeyIssuerId": "427cba56-68b8-42ec-b1a8-2f71d5195e53"
