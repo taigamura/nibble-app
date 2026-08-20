@@ -8,6 +8,7 @@ import {
   getWantPlaces,
 } from '../collection/selectors';
 import type { BeenEntry } from '../collection/selectors';
+import { summarizeTaste, type TasteSummary } from '../collection/tasteSummary';
 import type { Store } from '../providers/types';
 import { applyReview, markBeen } from '../taste-engine';
 import type { Place, TasteGraph } from '../taste-engine';
@@ -78,6 +79,7 @@ export function CollectionScreen({ store, canSignIn, signedIn, onRequestSignIn, 
   const wantPlaces = getWantPlaces(graph);
   const beenEntries = getBeenEntries(graph);
   const categoryStats = getBeenCategoryStats(graph);
+  const tasteSummary = summarizeTaste(graph);
 
   const handleSubmitReview = (placeId: string, rating: number, reviewTags: string[]) => {
     const next = applyReview(graph, placeId, { rating, reviewTags });
@@ -159,6 +161,8 @@ export function CollectionScreen({ store, canSignIn, signedIn, onRequestSignIn, 
           </Pressable>
         ))}
       </View>
+
+      {tasteSummary && <TasteCard summary={tasteSummary} styles={styles} colors={colors} />}
 
       {tab === 'want' && (
         <>
@@ -313,6 +317,47 @@ function PlaceRow({ entry, styles, reducedMotion, onSelect, onMarkBeen }: PlaceR
   );
 }
 
+interface TasteCardProps {
+  summary: TasteSummary;
+  styles: ReturnType<typeof makeStyles>;
+  colors: Palette;
+}
+
+/**
+ * Option D: a tinted "Your taste" hero card that makes the Collection read as a
+ * personalized profile rather than a bookmark folder. Headline = strongest
+ * positive signals, chips = where you've actually been, footer = breadth +
+ * price lean. All fields are derived by `summarizeTaste`, which returns null
+ * (and this card doesn't render) until there's enough signal to be honest.
+ */
+function TasteCard({ summary, styles, colors }: TasteCardProps) {
+  const footer =
+    `Built from ${summary.placeCount} ${summary.placeCount === 1 ? 'place' : 'places'} you swiped` +
+    (summary.priceLean ? ` · mostly ${summary.priceLean}` : '');
+
+  return (
+    <View style={styles.tasteCard}>
+      <View style={styles.tasteEyebrowRow}>
+        <Icon name="sparkles" size={12} color={colors.tint} style={styles.tasteEyebrowIcon} />
+        <Text style={styles.tasteEyebrow}>Your taste</Text>
+      </View>
+      <Text style={styles.tasteHeadline}>{summary.headline}</Text>
+      {summary.categoryChips.length > 0 && (
+        <View style={styles.tasteChips}>
+          {summary.categoryChips.map((chip) => (
+            <View key={chip.category} style={styles.tasteChip}>
+              <Text style={styles.tasteChipText}>
+                {formatCategory(chip.category)} · {chip.count}
+              </Text>
+            </View>
+          ))}
+        </View>
+      )}
+      <Text style={styles.tasteFooter}>{footer}</Text>
+    </View>
+  );
+}
+
 function makeStyles(colors: Palette, type: TypeRamp) {
   return StyleSheet.create({
     container: {
@@ -402,6 +447,60 @@ function makeStyles(colors: Palette, type: TypeRamp) {
       ...type.subheadline,
       fontWeight: '600',
       color: colors.tint,
+    },
+    // "Your taste" hero card (Option D). The tint wash is derived from the
+    // active palette's tint via RN 8-digit hex (#RRGGBBAA), so it adapts to
+    // light/dark without a separate token.
+    tasteCard: {
+      marginHorizontal: 16,
+      marginTop: 12,
+      padding: 16,
+      borderRadius: 16,
+      backgroundColor: `${colors.tint}1F`, // ~12% tint wash
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: `${colors.tint}40`, // ~25% tint hairline
+    },
+    tasteEyebrowRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    tasteEyebrowIcon: {
+      marginRight: 5,
+    },
+    tasteEyebrow: {
+      ...type.caption2,
+      fontWeight: '700',
+      letterSpacing: 0.6,
+      textTransform: 'uppercase',
+      color: colors.tint,
+    },
+    tasteHeadline: {
+      ...type.title3,
+      fontWeight: '700',
+      color: colors.label,
+      marginTop: 8,
+    },
+    tasteChips: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 7,
+      marginTop: 12,
+    },
+    tasteChip: {
+      backgroundColor: `${colors.tint}26`, // ~15% tint
+      borderRadius: 999,
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+    },
+    tasteChipText: {
+      ...type.caption1,
+      fontWeight: '600',
+      color: colors.tint,
+    },
+    tasteFooter: {
+      ...type.footnote,
+      color: colors.secondaryLabel,
+      marginTop: 12,
     },
     stats: {
       flexDirection: 'row',

@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Collection · Taste Summary Mockups</title>
+<style>
+  :root {
+    /* iOS light palette (from src/theme.ts) */
+    --tint: #007AFF;
+    --want: #FF2D55;
+    --been: #34C759;
+    --star: #FF9F0A;
+    --label: #000000;
+    --secondaryLabel: rgba(60,60,67,0.6);
+    --tertiaryLabel: rgba(60,60,67,0.3);
+    --labelOnColor: #FFFFFF;
+    --background: #FFFFFF;
+    --groupedBackground: #F2F2F7;
+    --separator: rgba(60,60,67,0.29);
+    --fill: rgba(120,120,128,0.12);
+  }
+  .dark {
+    --tint: #0A84FF;
+    --want: #FF375F;
+    --been: #30D158;
+    --star: #FF9F0A;
+    --label: #FFFFFF;
+    --secondaryLabel: rgba(235,235,245,0.6);
+    --tertiaryLabel: rgba(235,235,245,0.3);
+    --labelOnColor: #FFFFFF;
+    --background: #1C1C1E;
+    --groupedBackground: #0F0F13;
+    --separator: rgba(84,84,88,0.6);
+    --fill: rgba(120,120,128,0.24);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+    background: #1a1a1f;
+    color: #e6e6ea;
+    padding: 40px 24px 80px;
+    -webkit-font-smoothing: antialiased;
+  }
+  header.page { max-width: 1200px; margin: 0 auto 8px; }
+  header.page h1 { font-size: 26px; font-weight: 700; letter-spacing: -0.4px; }
+  header.page p { margin-top: 8px; color: #9a9aa5; font-size: 15px; line-height: 1.5; max-width: 720px; }
+  header.page code { background: #2a2a32; padding: 1px 6px; border-radius: 5px; font-size: 13px; }
+
+  .grid {
+    max-width: 1200px; margin: 40px auto 0;
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 40px 28px;
+  }
+  .variant { display: flex; flex-direction: column; }
+  .variant .meta { margin-bottom: 14px; }
+  .variant .meta .tagn {
+    display: inline-block; font-size: 12px; font-weight: 700; letter-spacing: 0.6px;
+    text-transform: uppercase; color: #7d7d8a; background: #26262e;
+    padding: 3px 9px; border-radius: 6px; margin-bottom: 8px;
+  }
+  .variant .meta h2 { font-size: 18px; font-weight: 650; letter-spacing: -0.2px; }
+  .variant .meta .note { margin-top: 6px; font-size: 13px; line-height: 1.5; color: #9a9aa5; }
+
+  /* --- iOS phone frame --- */
+  .phone {
+    width: 300px; border-radius: 34px; padding: 10px;
+    background: #000; box-shadow: 0 18px 50px rgba(0,0,0,.5);
+    margin: 0 auto;
+  }
+  .screen {
+    border-radius: 26px; overflow: hidden; background: var(--groupedBackground);
+    color: var(--label); position: relative; height: 540px;
+  }
+  .statusbar { height: 20px; }
+
+  /* header row (gear) */
+  .navrow { display: flex; justify-content: flex-end; padding: 4px 16px 2px; }
+  .gear { width: 26px; height: 26px; border-radius: 13px; background: var(--fill);
+    display: grid; place-items: center; color: var(--secondaryLabel); font-size: 14px; }
+
+  /* segmented tabs */
+  .tabs { position: relative; display: flex; margin: 12px 16px 0; padding: 3px;
+    background: var(--fill); border-radius: 13px; }
+  .tab { flex: 1; text-align: center; padding: 7px 0; font-size: 15px; font-weight: 600;
+    color: var(--secondaryLabel); border-radius: 10px; z-index: 1; letter-spacing: -0.24px; }
+  .tab.active { color: var(--labelOnColor); }
+  .tabpill { position: absolute; top: 3px; bottom: 3px; left: 3px; width: calc(50% - 3px);
+    background: var(--tint); border-radius: 10px; }
+
+  /* place rows */
+  .list { padding: 12px 16px; display: flex; flex-direction: column; gap: 10px; }
+  .prow { display: flex; background: var(--background); border-radius: 12px; overflow: hidden; }
+  .pthumb { width: 60px; height: 60px; flex: none;
+    background: linear-gradient(135deg,#c9c9d2,#9aa0ad); }
+  .prow:nth-child(2) .pthumb { background: linear-gradient(135deg,#e7c8a0,#c99b6a); }
+  .prow:nth-child(3) .pthumb { background: linear-gradient(135deg,#a8c3b0,#79a58c); }
+  .pbody { padding: 9px 10px; display: flex; flex-direction: column; justify-content: center; }
+  .pname { font-size: 16px; font-weight: 600; letter-spacing: -0.3px; }
+  .pmeta { font-size: 12px; color: var(--secondaryLabel); margin-top: 3px; }
+
+  /* generic pills / chips */
+  .chip { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600;
+    padding: 5px 10px; border-radius: 999px; background: var(--fill); color: var(--secondaryLabel);
+    letter-spacing: -0.1px; white-space: nowrap; }
+  .chip.accent { background: color-mix(in srgb, var(--tint) 14%, transparent); color: var(--tint); }
+
+  /* ============ VARIANT A: one-line taste sentence ============ */
+  .A-line { margin: 14px 16px 0; font-size: 13.5px; line-height: 1.45; color: var(--secondaryLabel);
+    letter-spacing: -0.1px; }
+  .A-line b { color: var(--label); font-weight: 650; }
+
+  /* ============ VARIANT B: labeled chip row ============ */
+  .B-wrap { margin: 14px 16px 0; }
+  .B-label { font-size: 11px; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase;
+    color: var(--tertiaryLabel); margin-bottom: 8px; }
+  .B-chips { display: flex; flex-wrap: wrap; gap: 7px; }
+
+  /* ============ VARIANT C: taste bars ============ */
+  .C-card { margin: 14px 16px 0; background: var(--background); border-radius: 14px; padding: 14px; }
+  .C-title { font-size: 12px; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase;
+    color: var(--tertiaryLabel); margin-bottom: 12px; }
+  .C-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .C-bar:last-child { margin-bottom: 0; }
+  .C-name { font-size: 13px; font-weight: 600; width: 78px; letter-spacing: -0.2px; }
+  .C-track { flex: 1; height: 7px; border-radius: 4px; background: var(--fill); overflow: hidden; }
+  .C-fill { height: 100%; border-radius: 4px; background: var(--tint); }
+
+  /* ============ VARIANT D: hero taste card ============ */
+  .D-card { margin: 14px 16px 0; border-radius: 16px; padding: 16px;
+    background: linear-gradient(135deg, color-mix(in srgb, var(--tint) 16%, var(--background)), var(--background));
+    border: 1px solid var(--separator); }
+  .D-eyebrow { font-size: 11px; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase;
+    color: var(--tint); display: flex; align-items: center; gap: 5px; }
+  .D-head { font-size: 19px; font-weight: 700; letter-spacing: -0.4px; line-height: 1.25; margin: 8px 0 12px; }
+  .D-head em { font-style: normal; color: var(--tint); }
+  .D-chips { display: flex; flex-wrap: wrap; gap: 7px; }
+  .D-foot { margin-top: 12px; font-size: 12px; color: var(--secondaryLabel); }
+
+  /* ============ VARIANT E: collapsed profile pill ============ */
+  .E-pill { margin: 14px 16px 0; display: flex; align-items: center; gap: 10px;
+    background: var(--background); border-radius: 999px; padding: 9px 14px; }
+  .E-spark { width: 28px; height: 28px; border-radius: 999px; flex: none;
+    background: color-mix(in srgb, var(--tint) 16%, transparent); color: var(--tint);
+    display: grid; place-items: center; font-size: 14px; }
+  .E-txt { flex: 1; font-size: 13px; line-height: 1.35; letter-spacing: -0.1px; }
+  .E-txt b { font-weight: 650; }
+  .E-txt span { color: var(--secondaryLabel); }
+  .E-chev { color: var(--tertiaryLabel); font-size: 15px; }
+
+  .schemes { display: flex; gap: 20px; justify-content: center; }
+  @media (max-width: 700px) { .schemes { flex-direction: column; align-items: center; } }
+</style>
+</head>
+<body>
+<header class="page">
+  <h1>Collection · “Your taste” summary</h1>
+  <p>
+    Five ways to surface the user's taste on the Collection screen, so the list of saved places
+    reads as <em>personalized</em> rather than a plain bookmark folder. Each is derived from data
+    that already exists: the taste-vector's top positive tags
+    (<code>whySurfaced</code> / <code>vector</code>), the Been category counts
+    (<code>getBeenCategoryStats</code>), and price-band lean. No new backend needed. Sample profile
+    below: a late-night ramen &amp; izakaya person who skews cheap.
+  </p>
+</header>
+
+<div class="grid">
+
+  <!-- ========== A ========== -->
+  <div class="variant">
+    <div class="meta">
+      <span class="tagn">Option A</span>
+      <h2>One-line taste sentence</h2>
+      <div class="note">Lowest-footprint. A single secondary line under the tabs. Reuses the exact
+        <code>whySurfaced</code> phrasing the swipe deck already speaks.</div>
+    </div>
+    <div class="schemes">
+      <div class="phone"><div class="screen">
+        <div class="statusbar"></div>
+        <div class="navrow"><div class="gear">⚙</div></div>
+        <div class="tabs"><div class="tabpill"></div><div class="tab active">Want</div><div class="tab">Been</div></div>
+        <div class="A-line">You lean toward <b>late-night ramen</b>, <b>izakaya</b>, and <b>cheap counter seats</b>.</div>
+        <div class="list">
+          <div class="prow"><div class="pthumb"></div><div class="pbody"><div class="pname">Fuunji</div><div class="pmeta">Ramen · $</div></div></div>
+          <div class="prow"><div class="pthumb"></div><div class="pbody"><div class="pname">Bar Trench</div><div class="pmeta">Cocktail Bar · $$$</div></div></div>
+          <div class="prow"><div class="pthumb"></div><div class="pbody"><div class="pname">Afuri</div><div class="pmeta">Ramen · $$</div></div></div>
+        </div>
+      </div></div>
+      <div class="phone dark"><div class="screen">
+        <div class="statusbar"></div>
+        <div class="navrow"><div class="gear">⚙</div></div>
+        <div class="tabs"><div class="tabpill"></div><div class="tab active">Want</div><div class="tab">Been</div></div>
+        <div class="A-line">You lean toward <b>late-night ramen</b>, <b>izakaya</b>, and <b>cheap counter seats</b>.</div>
+        <div class="list">
+          <div class="prow"><div class="pthumb"></div><div class="pbody"><div class="pname">Fuunji</div><div class="pmeta">Ramen · $</div></div></div>
+          <div class="prow"><div class="pthumb"></div><div class="pbody"><div class="pname">Bar Trench</div><div class="pmeta">Cocktail Bar · $$$</div></div></div>
+          <div class="prow"><div class="pthumb"></div><div class="pbody"><div class="pname">Afuri</div><div class="pmeta">Ramen · $$</div></div></div>
+        </div>
+      </div></div>
+    </div>
+  </div>
+
+  <!-- ========== B ========== -->
+  <div class="variant">
+    <div class="meta">
+      <span class="tagn">Option B</span>
+      <h2>Labeled chip row</h2>
+      <div class="note">Top signals as tappable pills under a “Your taste” label. Scannable, and
+        each chip could later filter the list. Mirrors the existing Been stat-chips styling.</div>
+    </div>
+    <div class="schemes">
+      <div class="phone"><div class="screen">
+        <div class="statusbar"></div>
+        <div class="navrow"><div class="gear">⚙</div></div>
+        <div class="tabs"><div class="tabpill"></div><div class="tab active">Want</div><div class="tab">Been</div></div>
+        <div class="B-wrap">
+          <div class="B-label">Your taste</div>
+          <div class="B-chips">
+            <span class="chip accent">🍜 Ramen</span><span class="chip accent">🌙 Late-night</span>
+            <span class="chip accent">🪑 Counter</span><span class="chip accent">💴 Cheap eats</span>
+          </div>
+        </div>
+        <div class="list">
+          <div class="prow"><div class="pthumb"></div><div class="pbody"><div class="pname">Fuunji</div><div class="pmeta">Ramen · $</div></div></div>
+          <div class="prow"><div class="pthumb"></div><div class="pbody"><div class="pname">Bar Trench</div><div class="pmeta">Cocktail Bar · $$$</div></div></div>
+        </div>
+      </div></div>
+      <div class="phone dark"><div class="screen">
+        <div class="statusbar"></div>
+        <div class="navrow"><div class="gear">⚙</div></div>
+        <div class="tabs"><div class="tabpill"></div><div class="tab active">Want</div><div class="tab">Been</div></div>
+        <div class="B-wrap">
+          <div class="B-label">Your taste</div>
+          <div class="B-chips">
+            <span class="chip accent">🍜 Ramen</span><span class="chip accent">🌙 Late-night</span>
+            <span class="chip accent">🪑 Counter</span><span class="chip accent">💴 Cheap eats</span>
+          </div>
+        </div>
+        <div class="list">
+          <div class="prow"><div class="pthumb"></div><div class="pbody"><div class="pname">Fuunji</div><div class="pmeta">Ramen · $</div></div></div>
+          <div class="prow"><div class="pthumb"></div><div class="pbody"><div class="pname">Bar Trench</div><div class="pmeta">Cocktail Bar · $$$</div></div></div>
+        </div>
+      </div></div>
+    </div>
+  </div>
+
+  <!-- ========== C ========== -->
+  <div class="variant">
+    <div class="meta">
+      <span class="tagn">Option C</span>
+      <h2>Taste bars</h2>
+      <div class="note">A tiny card visualizing the <em>weights</em> in the vector, not just the labels.
+        Feels like a real profile. Best when the user has enough swipes for the bars to differ.</div>
+    </div>
+    <div class="schemes">
+      <div class="phone"><div class="screen">
+        <div class="statusbar"></div>
+        <div class="navrow"><div class="gear">⚙</div></div>
+        <div class="tabs"><div class="tabpill"></div><div class="tab active">Want</div><div class="tab">Been</div></div>
+        <div class="C-card">
+          <div class="C-title">Your taste</div>
+          <div class="C-bar"><div class="C-name">Ramen</div><div class="C-track"><div class="C-fill" style="width:100%"></div></div></div>
+          <div class="C-bar"><div class="C-name">Late-night</div><div class="C-track"><div class="C-fill" style="width:82%"></div></div></div>
+          <div class="C-bar"><div class="C-name">Izakaya</div><div class="C-track"><div class="C-fill" style="width:64%"></div></div></div>
+          <div class="C-bar"><div class="C-name">Counter</div><div class="C-track"><div class="C-fill" style="width:47%"></div></div></div>
+        </div>
+        <div class="list">
+          <div class="prow"><div class="pthumb"></div><div class="pbody"><div class="pname">Fuunji</div><div class="pmeta">Ramen · $</div></div></div>
+        </div>
+      </div></div>
+      <div class="phone dark"><div class="screen">
+        <div class="statusbar"></div>
+        <div class="navrow"><div class="gear">⚙</div></div>
+        <div class="tabs"><div class="tabpill"></div><div class="tab active">Want</div><div class="tab">Been</div></div>
+        <div class="C-card">
+          <div class="C-title">Your taste</div>
+          <div class="C-bar"><div class="C-name">Ramen</div><div class="C-track"><div class="C-fill" style="width:100%"></div></div></div>
+          <div class="C-bar"><div class="C-name">Late-night</div><div class="C-track"><div class="C-fill" style="width:82%"></div></div></div>
+          <div class="C-bar"><div class="C-name">Izakaya</div><div class="C-track"><div class="C-fill" style="width:64%"></div></div></div>
+          <div class="C-bar"><div class="C-name">Counter</div><div class="C-track"><div class="C-fill" style="width:47%"></div></div></div>
+        </div>
+        <div class="list">
+          <div class="prow"><div class="pthumb"></div><div class="pbody"><div class="pname">Fuunji</div><div class="pmeta">Ramen · $</div></div></div>
+        </div>
+      </div></div>
+    </div>
+  </div>
+
+  <!-- ========== D ========== -->
+  <div class="variant">
+    <div class="meta">
+      <span class="tagn">Option D</span>
+      <h2>Hero taste card</h2>
+      <div class="note">The most expressive: a tinted card with a headline sentence, supporting chips,
+        and a “built from N places” footer that doubles as a nudge to keep swiping.</div>
+    </div>
+    <div class="schemes">
+      <div class="phone"><div class="screen">
+        <div class="statusbar"></div>
+        <div class="navrow"><div class="gear">⚙</div></div>
+        <div class="tabs"><div class="tabpill"></div><div class="tab active">Want</div><div class="tab">Been</div></div>
+        <div class="D-card">
+          <div class="D-eyebrow">✦ Your taste</div>
+          <div class="D-head">A <em>late-night ramen</em> person who skews cheap &amp; casual.</div>
+          <div class="D-chips">
+            <span class="chip accent">🍜 Ramen</span><span class="chip accent">🏮 Izakaya</span><span class="chip accent">🌙 Late-night</span>
+          </div>
+          <div class="D-foot">Built from 14 places you swiped · mostly $–$$</div>
+        </div>
+        <div class="list">
+          <div class="prow"><div class="pthumb"></div><div class="pbody"><div class="pname">Fuunji</div><div class="pmeta">Ramen · $</div></div></div>
+        </div>
+      </div></div>
+      <div class="phone dark"><div class="screen">
+        <div class="statusbar"></div>
+        <div class="navrow"><div class="gear">⚙</div></div>
+        <div class="tabs"><div class="tabpill"></div><div class="tab active">Want</div><div class="tab">Been</div></div>
+        <div class="D-card">
+          <div class="D-eyebrow">✦ Your taste</div>
+          <div class="D-head">A <em>late-night ramen</em> person who skews cheap &amp; casual.</div>
+          <div class="D-chips">
+            <span class="chip accent">🍜 Ramen</span><span class="chip accent">🏮 Izakaya</span><span class="chip accent">🌙 Late-night</span>
+          </div>
+          <div class="D-foot">Built from 14 places you swiped · mostly $–$$</div>
+        </div>
+        <div class="list">
+          <div class="prow"><div class="pthumb"></div><div class="pbody"><div class="pname">Fuunji</div><div class="pmeta">Ramen · $</div></div></div>
+        </div>
+      </div></div>
+    </div>
+  </div>
+
+  <!-- ========== E ========== -->
+  <div class="variant">
+    <div class="meta">
+      <span class="tagn">Option E</span>
+      <h2>Collapsed profile pill</h2>
+      <div class="note">A single quiet row with a spark glyph and a one-liner, tappable to expand into
+        the full breakdown (Option C/D). Best balance of “present but not loud”.</div>
+    </div>
+    <div class="schemes">
+      <div class="phone"><div class="screen">
+        <div class="statusbar"></div>
+        <div class="navrow"><div class="gear">⚙</div></div>
+        <div class="tabs"><div class="tabpill"></div><div class="tab active">Want</div><div class="tab">Been</div></div>
+        <div class="E-pill">
+          <div class="E-spark">✦</div>
+          <div class="E-txt"><b>Late-night ramen &amp; izakaya</b> <span>· mostly cheap eats</span></div>
+          <div class="E-chev">›</div>
+        </div>
+        <div class="list">
+          <div class="prow"><div class="pthumb"></div><div class="pbody"><div class="pname">Fuunji</div><div class="pmeta">Ramen · $</div></div></div>
+          <div class="prow"><div class="pthumb"></div><div class="pbody"><div class="pname">Bar Trench</div><div class="pmeta">Cocktail Bar · $$$</div></div></div>
+        </div>
+      </div></div>
+      <div class="phone dark"><div class="screen">
+        <div class="statusbar"></div>
+        <div class="navrow"><div class="gear">⚙</div></div>
+        <div class="tabs"><div class="tabpill"></div><div class="tab active">Want</div><div class="tab">Been</div></div>
+        <div class="E-pill">
+          <div class="E-spark">✦</div>
+          <div class="E-txt"><b>Late-night ramen &amp; izakaya</b> <span>· mostly cheap eats</span></div>
+          <div class="E-chev">›</div>
+        </div>
+        <div class="list">
+          <div class="prow"><div class="pthumb"></div><div class="pbody"><div class="pname">Fuunji</div><div class="pmeta">Ramen · $</div></div></div>
+          <div class="prow"><div class="pthumb"></div><div class="pbody"><div class="pname">Bar Trench</div><div class="pmeta">Cocktail Bar · $$$</div></div></div>
+        </div>
+      </div></div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

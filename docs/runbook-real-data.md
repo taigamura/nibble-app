@@ -179,12 +179,30 @@ Enrichment complete: N place(s) tagged.
 Google's TOS caching window). Enrich only processes rows whose `tags` are still
 empty, so it never re-bills the LLM for a place already tagged.
 
-**Volume note:** the ingest seed grid is 5 points (Shibuya, Ebisu/Daikanyama,
-Meguro, Sangenjaya, Shimokitazawa) × up to 20 results each = **~80–100 places**.
-That's enough to feel real personalization for QA, but far short of the PRD's
-15–20k target. To densify, add lat/lng points to `SEED_POINTS` in
-[`scripts/ingestPlaces.ts`](../scripts/ingestPlaces.ts) (the API caps each
-`searchNearby` at 20 results, so more coverage = more seed points).
+**Volume note:** the ingest seed grid is the **Kinshicho/Sumida beachhead** —
+a 6×6 grid of overlapping 800m search circles tiling `BEACHHEAD_BOUNDS`, so
+**36 `searchNearby` calls per run** returning up to 20 places each, deduped to
+roughly **200–350 unique food places**. That's the deliberate launch scope
+(**Tokyo only**, east-side beachhead), enough to feel real personalization,
+not the PRD's 15–20k city-wide target. To widen coverage later, grow
+`BEACHHEAD_BOUNDS` (or lower `GRID_STEP_*`) in
+[`scripts/ingestPlaces.ts`](../scripts/ingestPlaces.ts) — the API caps each
+`searchNearby` at 20 results, so more coverage = more seed points = more calls.
+
+**Cost of one seed run (Tokyo beachhead, ~300 unique places):**
+
+| Phase | Calls | SKU / rate | Cost |
+|-------|-------|-----------|------|
+| `ingest` | 36 Nearby Search | Enterprise, ~$35/1k | ~$1.26 |
+| `enrich` | ~300 Place Details (`reviews`) | Enterprise+Atmosphere, ~$25/1k | ~$7.50 |
+| `enrich` | ~300 `claude-sonnet-5` calls | ~$3/1M in, ~$15/1M out | ~$2 (estimate) |
+
+The ~$9 of Google usage sits inside Google's free monthly allowance, so
+real out-of-pocket for a seed is ~$2 (the Anthropic calls). **Ongoing** cost
+for a handful of users is dominated by lazy Place Photo loads (~$7/1k, cached
+client-side) plus an optional monthly refresh re-ingest (~$1.26) — a few
+dollars a month at most. Set the [step 4](#4-cap-your-spend-do-this-before-seeding)
+caps before your first run regardless.
 
 Verify in Supabase: **Table Editor → places** should show rows with non-empty
 `tags` arrays.
@@ -202,6 +220,18 @@ an `EXPO_PUBLIC_*` var is missing or the dev server wasn't restarted after
 editing `.env`.
 
 ## 8. (iOS only) Sign in with Apple
+
+> **Disabled for the initial release.** Cloud sync is gated off behind
+> `CLOUD_SYNC_ENABLED = false` in [`src/config/features.ts`](../src/config/features.ts).
+> The launch is a handful of users, so a per-device local store is enough and
+> this avoids the Apple Services ID / Supabase Apple provider setup (and the
+> dashboard config that currently 400s). The app runs fully local; no sign-in
+> button appears anywhere.
+>
+> **To re-enable:** flip `CLOUD_SYNC_ENABLED` to `true` and rebuild — that one
+> flag is the whole switch (the auth provider, sign-in prompt, Settings account
+> row, and cloud store are all still in the codebase, gated on it). Then finish
+> the Supabase Apple provider config below.
 
 The anonymous → local-cache flow works everywhere, including web. Cloud sync
 (`taste_graphs`) requires Apple sign-in, which only works on a real iOS build:

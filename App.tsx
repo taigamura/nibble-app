@@ -7,6 +7,7 @@ import { AppShell } from './src/components/AppShell';
 import { Icon } from './src/components/Icon';
 import { migrateLocalDataToCloud } from './src/auth/migrateToCloud';
 import { isMisconfiguredRelease, isRealBackendConfigured, loadConfig, missingBackendKeys } from './src/config/env';
+import { CLOUD_SYNC_ENABLED } from './src/config/features';
 import { haptics } from './src/haptics';
 import { spring, useReducedMotion } from './src/motion';
 import { SupabaseAppleAuthProvider } from './src/providers/appleAuth';
@@ -61,6 +62,10 @@ function createPlacesProvider(getUserLocation: () => Promise<GeoPoint>): PlacesP
 
 /** `null` when the real backend isn't configured -- Sign in with Apple stays hidden and the app runs fully anonymous/local, same fallback rule as `createPlacesProvider`. */
 function createAuthProvider(): AuthProvider | null {
+  // Cloud sync is off for the initial release (see CLOUD_SYNC_ENABLED). With no
+  // auth provider, `canSignIn` is false everywhere and the entire Sign in with
+  // Apple surface (prompt, Settings account row, sync banner) stays hidden.
+  if (!CLOUD_SYNC_ENABLED) return null;
   const config = loadConfig();
   if (!isRealBackendConfigured(config)) return null;
   return new SupabaseAppleAuthProvider({
@@ -76,6 +81,9 @@ function createAuthProvider(): AuthProvider | null {
  * runs.
  */
 function createCloudStore(getSession: () => Promise<AuthSession>): Store | null {
+  // Paired with createAuthProvider: no cloud store when sync is off, so the app
+  // always reads/writes the device-local store.
+  if (!CLOUD_SYNC_ENABLED) return null;
   const config = loadConfig();
   if (!isRealBackendConfigured(config)) return null;
   return new SupabaseStore({
