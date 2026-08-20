@@ -14,14 +14,15 @@ Populate the Supabase `places` table with ~200–350 real central-Tokyo food-and
 
 - **`docs/runbook-real-data.md`** — the authoritative step-by-step (accounts, keys, caps, seeding, troubleshooting). This handoff is the condensed execution path; the runbook is the reference. When they disagree, the runbook wins.
 - `scripts/ingestPlaces.ts` — the Google Places → `places` ingest (grid, food-type filter, TOS-safe refresh).
-- `scripts/enrichPlaces.ts` + `src/providers/llmEnrichment.ts` — the offline Anthropic tagging pass.
+- `scripts/enrichPlaces.ts` + `src/providers/llmEnrichment.ts` — the offline tagging pass. The LLM runs through the local `claude` CLI (your Claude subscription), never the Anthropic API / an `ANTHROPIC_API_KEY`.
 - `supabase/schema.sql` — the tables + RLS policies to apply.
 - `src/config/env.ts` — how the app decides real-backend vs. fixtures (`isRealBackendConfigured`).
 
 ## 3. What must NOT change (guardrails)
 
 - **Don't edit the pipeline scripts** to get this working. They are complete and tested. The only thing missing is real credentials + a Supabase project.
-- **Don't commit secrets.** `.env` is gitignored; keep it that way. The `service_role` key and `ANTHROPIC_API_KEY` are **server-side only** — never put them in an `EXPO_PUBLIC_*` var (that ships to clients).
+- **Don't commit secrets.** `.env` is gitignored; keep it that way. The `service_role` key is **server-side only** — never put it in an `EXPO_PUBLIC_*` var (that ships to clients).
+- **Never use `ANTHROPIC_API_KEY`.** Enrichment runs on the local `claude` CLI (subscription). The enrich script deletes that env var at startup; do not add it back (it once leaked in and cost ~$20).
 - **Don't widen `BEACHHEAD_BOUNDS`** or lower `GRID_STEP_*` in `scripts/ingestPlaces.ts` for this task. Tokyo beachhead is the intended launch scope. Widening is a separate, cost-increasing decision (§6).
 - **Don't force-refresh on a short schedule.** Google's TOS allows caching its fields for 30 days; the ingest already respects this (`needsRefresh`). `--force` is for a deliberate manual refresh, not a cron.
 - **Set the spend caps BEFORE the first seed run** (§4.2). A Google *budget* only emails you — it does not stop spend; only per-API request quotas do.
@@ -34,12 +35,12 @@ These need account signups / dashboard clicks. If you're an agent without browse
 
 1. **Supabase project** (region: Northeast Asia / Tokyo). Apply the entire `supabase/schema.sql` in the SQL Editor. Grab Project URL, `anon` key, `service_role` key. — runbook §1
 2. **Google Cloud**: enable **Places API (New)** (not legacy "Places API"), create an API key, enable billing. — runbook §2
-3. **Anthropic**: create an API key (used only by `enrich`). — runbook §3
+3. **`claude` CLI**: installed and logged in to your Claude subscription (used by `enrich`). No API key. — runbook §3
 
 ### 4.2 Cap spend (do this before seeding) — runbook §4
 
 - **Google:** set **Requests/day** (e.g. 500) and **Requests/minute** (e.g. 60) quotas on Places API (New). This is the hard ceiling. Add a $10/mo budget alert for visibility. Restrict the key to Places API (New) + your bundle ID.
-- **Anthropic:** set a monthly spend limit (e.g. $5) in the console — this one actually stops calls.
+- **LLM tagging:** nothing to cap — the local `claude` CLI runs on your subscription, no metered API spend.
 
 ### 4.3 Populate `.env`
 
@@ -53,7 +54,7 @@ EXPO_PUBLIC_SUPABASE_ANON_KEY=<anon key>
 GOOGLE_PLACES_API_KEY=<google key>
 SUPABASE_URL=https://<ref>.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=<service_role key>
-ANTHROPIC_API_KEY=<anthropic key>
+# No ANTHROPIC_API_KEY — enrichment uses the local `claude` CLI.
 ```
 
 The scripts auto-load `.env` via `--env-file-if-exists`. The app-side `EXPO_PUBLIC_*` and the script-side unprefixed vars are **separate** — set both.
@@ -68,7 +69,7 @@ Or run the phases separately (both are safe to re-run — ingest skips rows fres
 
 ```bash
 npm run ingest         # 36 searchNearby calls → places table
-npm run enrich         # ~1 Place Details + 1 Anthropic call per untagged place
+npm run enrich         # ~1 Place Details + 1 local `claude` CLI call per untagged place
 ```
 
 Expected output shape:
@@ -93,9 +94,9 @@ One seed run over the beachhead (~300 unique places):
 |-------|-------|------|------|
 | ingest | 36 Nearby Search (Enterprise) | ~$35/1k | ~$1.26 |
 | enrich | ~300 Place Details w/ reviews (Ent+Atmosphere) | ~$25/1k | ~$7.50 |
-| enrich | ~300 `claude-sonnet-5` | ~$3/1M in, ~$15/1M out | ~$2 (estimate) |
+| enrich | ~300 local `claude` CLI calls | your Claude subscription | $0 (no metered API) |
 
-The ~$9 Google portion sits inside Google's free monthly allowance → real out-of-pocket ~$2. Ongoing cost for <10 users is dominated by lazy Place Photo loads (~$7/1k, client-cached). **To widen beyond the beachhead later:** grow `BEACHHEAD_BOUNDS` / lower `GRID_STEP_*`; cost scales linearly with seed-point count (each point = one $0.035 call). That is a deliberate follow-up, out of scope for this handoff.
+The ~$9 Google portion sits inside Google's free monthly allowance, and the LLM tagging runs on your Claude subscription (no per-token cost) → real out-of-pocket ~$0. Ongoing cost for <10 users is dominated by lazy Place Photo loads (~$7/1k, client-cached). **To widen beyond the beachhead later:** grow `BEACHHEAD_BOUNDS` / lower `GRID_STEP_*`; cost scales linearly with seed-point count (each point = one $0.035 call). That is a deliberate follow-up, out of scope for this handoff.
 
 ## 7. Troubleshooting quick table (full list in runbook §Troubleshooting)
 
@@ -112,5 +113,5 @@ The ~$9 Google portion sits inside Google's free monthly allowance → real out-
 
 - `places` table has ~200–350 Tokyo rows with non-empty `tags`.
 - `npm run web` (with location at/near Kinshicho) shows real places on the swipe deck, not the 10 fixtures.
-- Spend caps are set on Google + Anthropic.
+- Spend cap is set on Google. (No Anthropic spend — enrichment uses the local `claude` CLI.)
 - No secrets committed; `.env` still gitignored.

@@ -3,9 +3,11 @@
  * doesn't have tags yet with LLM-derived vibe/specialty taste tags, and
  * persists them permanently in Supabase. See issue #4.
  *
- * Run with real credentials (loads .env, then `npm run enrich`), e.g.:
- *   ANTHROPIC_API_KEY=... GOOGLE_PLACES_API_KEY=... SUPABASE_URL=... \
- *     SUPABASE_SERVICE_ROLE_KEY=... npm run enrich
+ * The tagging model runs through the local `claude` CLI (the machine's Claude
+ * subscription) — never an Anthropic API key. Run with real credentials
+ * (loads .env, then `npm run enrich`):
+ *   GOOGLE_PLACES_API_KEY=... SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... \
+ *     npm run enrich
  *
  * Re-running is safe and cheap: only rows with empty `tags` are selected,
  * so already-tagged places are never re-sent to the LLM.
@@ -63,19 +65,23 @@ async function persistTags(
 }
 
 export async function runEnrichment(options: {
-  anthropicApiKey: string;
   googlePlacesApiKey: string;
   supabaseUrl: string;
   supabaseServiceRoleKey: string;
   fetchImpl?: typeof fetch;
   /** Milliseconds to pause between places, to stay under upstream rate limits. */
   delayMs?: number;
+  /**
+   * The completion backend passed to {@link LlmEnrichmentProvider} — the local
+   * `claude` CLI. This is the only LLM path; there is no hosted-API option.
+   */
+  completePrompt: (prompt: string) => Promise<string>;
 }): Promise<{ tagged: number; failed: number }> {
   const fetchImpl = options.fetchImpl ?? fetch;
   const provider = new LlmEnrichmentProvider({
-    anthropicApiKey: options.anthropicApiKey,
     googlePlacesApiKey: options.googlePlacesApiKey,
     fetchImpl,
+    completePrompt: options.completePrompt,
   });
 
   const untagged = await fetchUntaggedPlaces(options.supabaseUrl, options.supabaseServiceRoleKey, fetchImpl);
@@ -95,7 +101,7 @@ export async function runEnrichment(options: {
       // eslint-disable-next-line no-console
       console.warn(`  skipped ${row.name} (${row.place_id}): ${(error as Error).message}`);
     }
-    // Gentle throttle between places to stay under Google/Anthropic rate limits.
+    // Gentle throttle between places to stay under Google/CLI rate limits.
     if (options.delayMs && options.delayMs > 0) {
       await new Promise((resolve) => setTimeout(resolve, options.delayMs));
     }
@@ -104,21 +110,82 @@ export async function runEnrichment(options: {
   return { tagged, failed };
 }
 
+/**
+ * Completion backend that shells out to the local `claude` CLI in headless
+ * print mode (`claude -p`). This uses the machine's logged-in Claude plan
+ * instead of an Anthropic API key, so no per-token billing and no
+ * `ANTHROPIC_API_KEY` is needed. The prompt is passed on argv (a few KB, well
+ * under ARG_MAX); the model's raw text answer comes back on stdout, which
+ * `parseEnrichmentResponse` already tolerates (JSON, optionally fenced).
+ */
+function makeClaudeCliComplete(model = 'sonnet'): (prompt: string) => Promise<string> {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { spawn } = require('node:child_process') as typeof import('node:child_process');
+  return (prompt: string) =>
+    new Promise<string>((resolve, reject) => {
+      // stdin: 'ignore' closes the child's stdin immediately. Without it the
+      // CLI waits ~3s per call for stdin that never comes (it reads the prompt
+      // from argv), which across a full batch adds up to many wasted minutes.
+      // Strip API-key auth from the child's env so `claude` always uses the
+      // machine's claude.ai subscription login (no per-token billing). `npm
+      // run` re-injects ANTHROPIC_API_KEY even when the parent was launched
+      // with `env -u`, so clearing it here is what actually guarantees the
+      // no-API-cost path and silences the "auth source takes precedence" warning.
+      const childEnv = { ...process.env };
+      delete childEnv.ANTHROPIC_API_KEY;
+      delete childEnv.ANTHROPIC_AUTH_TOKEN;
+      const child = spawn('claude', ['-p', prompt, '--model', model], {
+        stdio: ['ignore', 'pipe', 'pipe'],
+        timeout: 120_000,
+        env: childEnv,
+      });
+      let stdout = '';
+      let stderr = '';
+      child.stdout.on('data', (chunk) => (stdout += chunk));
+      child.stderr.on('data', (chunk) => (stderr += chunk));
+      child.on('error', (error) => reject(new Error(`claude CLI spawn failed: ${error.message}`)));
+      child.on('close', (code) => {
+        if (code === 0) {
+          resolve(stdout);
+          return;
+        }
+        // Surface the CLI's own stderr (e.g. a usage-limit message) so a
+        // skipped place is diagnosable, not just "Command failed".
+        reject(new Error(`claude CLI exited ${code}: ${stderr.trim() || '(no stderr)'}`));
+      });
+    });
+}
+
 /* eslint-disable no-console */
 if (require.main === module) {
-  const anthropicApiKey = process.env.ANTHROPIC_API_KEY;
+  // Hard rule for this project: enrichment NEVER uses the Anthropic API — it
+  // runs only through the local `claude` CLI (the machine's subscription
+  // login), so it can never bill API credits. Delete any leaked key from this
+  // process up front so nothing downstream (this script, the provider, or the
+  // spawned CLI) can reach it. `npm run` re-injects ANTHROPIC_API_KEY even
+  // after `env -u`, which is exactly how it was reached by accident before.
+  delete process.env.ANTHROPIC_API_KEY;
+  delete process.env.ANTHROPIC_AUTH_TOKEN;
+
   const googlePlacesApiKey = process.env.GOOGLE_PLACES_API_KEY;
   const supabaseUrl = process.env.SUPABASE_URL;
   const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-  if (!anthropicApiKey || !googlePlacesApiKey || !supabaseUrl || !supabaseServiceRoleKey) {
-    console.error(
-      'Missing required env vars: ANTHROPIC_API_KEY, GOOGLE_PLACES_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY',
-    );
+  if (!googlePlacesApiKey || !supabaseUrl || !supabaseServiceRoleKey) {
+    console.error('Missing required env vars: GOOGLE_PLACES_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY');
     process.exit(1);
   }
 
-  runEnrichment({ anthropicApiKey, googlePlacesApiKey, supabaseUrl, supabaseServiceRoleKey, delayMs: 350 })
+  console.log('Enriching via the local `claude` CLI (subscription login; the Anthropic API is never used).');
+
+  runEnrichment({
+    // Intentionally no anthropicApiKey: the CLI completer is the only backend.
+    googlePlacesApiKey,
+    supabaseUrl,
+    supabaseServiceRoleKey,
+    completePrompt: makeClaudeCliComplete(),
+    delayMs: 350,
+  })
     .then(({ tagged, failed }) => {
       console.log(
         `Enrichment complete: ${tagged} place(s) tagged` +

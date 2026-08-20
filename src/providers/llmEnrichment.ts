@@ -108,19 +108,20 @@ function extractReviewTexts(details: { reviews?: Array<{ text?: { text?: string 
   return (details.reviews ?? []).map((review) => review.text?.text).filter((text): text is string => Boolean(text));
 }
 
-interface AnthropicMessagesResponse {
-  content: Array<{ type: string; text?: string }>;
-}
-
 export interface LlmEnrichmentProviderOptions {
-  anthropicApiKey: string;
   googlePlacesApiKey: string;
   /** Injected fetch, defaulting to the global — mirrors SupabasePlacesProvider's testability pattern. */
   fetchImpl?: typeof fetch;
-  model?: string;
+  /**
+   * The completion backend: given the enrichment prompt, returns the model's
+   * raw text response. This is the ONLY LLM path — the caller supplies the
+   * local `claude` CLI (see `scripts/enrichPlaces.ts`), which runs on the
+   * machine's Claude subscription. There is deliberately no hosted-API option:
+   * enrichment must never authenticate with an Anthropic API key or bill
+   * per-token credits.
+   */
+  completePrompt: (prompt: string) => Promise<string>;
 }
-
-const DEFAULT_MODEL = 'claude-sonnet-5';
 
 /**
  * Tags a place's real vibe/specialty from its Google reviews, once. This
@@ -130,17 +131,15 @@ const DEFAULT_MODEL = 'claude-sonnet-5';
  */
 export class LlmEnrichmentProvider implements EnrichmentProvider {
   private readonly fetchImpl: typeof fetch;
-  private readonly model: string;
 
   constructor(private readonly options: LlmEnrichmentProviderOptions) {
     this.fetchImpl = options.fetchImpl ?? fetch;
-    this.model = options.model ?? DEFAULT_MODEL;
   }
 
   async enrich(place: Pick<Place, 'id' | 'name' | 'category'>): Promise<string[]> {
     const reviews = await this.fetchReviews(place.id);
     const prompt = buildEnrichmentPrompt(place, reviews);
-    const responseText = await this.callAnthropic(prompt);
+    const responseText = await this.options.completePrompt(prompt);
     const tags = parseEnrichmentResponse(responseText);
     return flattenEnrichmentTags(tags);
   }
@@ -156,32 +155,5 @@ export class LlmEnrichmentProvider implements EnrichmentProvider {
 
     const details = (await response.json()) as { reviews?: Array<{ text?: { text?: string } }> };
     return extractReviewTexts(details);
-  }
-
-  private async callAnthropic(prompt: string): Promise<string> {
-    const response = await this.fetchImpl('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': this.options.anthropicApiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: this.model,
-        max_tokens: 512,
-        messages: [{ role: 'user', content: prompt }],
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Anthropic enrichment call failed with status ${response.status}`);
-    }
-
-    const body = (await response.json()) as AnthropicMessagesResponse;
-    const text = body.content.find((block) => block.type === 'text')?.text;
-    if (!text) {
-      throw new Error('Anthropic enrichment response had no text content');
-    }
-    return text;
   }
 }

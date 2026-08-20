@@ -89,52 +89,44 @@ describe('buildEnrichmentPrompt', () => {
 });
 
 describe('LlmEnrichmentProvider', () => {
-  function fakeFetch(googleBody: unknown, anthropicText: string): jest.Mock {
-    return jest
-      .fn()
-      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => googleBody })
-      .mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        json: async () => ({ content: [{ type: 'text', text: anthropicText }] }),
-      });
+  // Only Google Place Details is fetched over HTTP; the LLM step is the
+  // injected `completePrompt` (the local `claude` CLI in production).
+  function googleFetch(googleBody: unknown): jest.Mock {
+    return jest.fn().mockResolvedValueOnce({ ok: true, status: 200, json: async () => googleBody });
   }
 
-  it('fetches reviews, calls the LLM, and returns flattened tags', async () => {
-    const fetchImpl = fakeFetch(
-      { reviews: [{ text: { text: 'Amazing espresso' } }, { text: { text: 'Tiny counter seating' } }] },
-      JSON.stringify(tags()),
-    );
+  it('fetches reviews, calls the completion backend, and returns flattened tags', async () => {
+    const fetchImpl = googleFetch({
+      reviews: [{ text: { text: 'Amazing espresso' } }, { text: { text: 'Tiny counter seating' } }],
+    });
+    const completePrompt = jest.fn(async (_prompt: string) => JSON.stringify(tags()));
 
     const provider = new LlmEnrichmentProvider({
-      anthropicApiKey: 'anthropic-key',
       googlePlacesApiKey: 'google-key',
       fetchImpl: fetchImpl as unknown as typeof fetch,
+      completePrompt,
     });
 
     const result = await provider.enrich({ id: 'place-1', name: 'Fuunji', category: 'ramen' });
 
     expect(result).toEqual(flattenEnrichmentTags(tags()));
-    expect(fetchImpl).toHaveBeenCalledTimes(2);
-
+    // Exactly one HTTP call, and it's Google — never an Anthropic endpoint.
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
     const [googleUrl, googleInit] = fetchImpl.mock.calls[0];
     expect(String(googleUrl)).toContain('places/place-1');
     expect((googleInit as RequestInit).headers).toMatchObject({ 'X-Goog-Api-Key': 'google-key' });
 
-    const [anthropicUrl, anthropicInit] = fetchImpl.mock.calls[1];
-    expect(String(anthropicUrl)).toBe('https://api.anthropic.com/v1/messages');
-    expect((anthropicInit as RequestInit).headers).toMatchObject({ 'x-api-key': 'anthropic-key' });
-    const body = JSON.parse((anthropicInit as RequestInit).body as string);
-    expect(body.messages[0].content).toContain('Amazing espresso');
+    // The prompt handed to the completion backend carries the reviews.
+    expect(completePrompt).toHaveBeenCalledTimes(1);
+    expect(completePrompt.mock.calls[0][0]).toContain('Amazing espresso');
   });
 
   it('handles places with no reviews', async () => {
-    const fetchImpl = fakeFetch({}, JSON.stringify(tags()));
-
+    const fetchImpl = googleFetch({});
     const provider = new LlmEnrichmentProvider({
-      anthropicApiKey: 'anthropic-key',
       googlePlacesApiKey: 'google-key',
       fetchImpl: fetchImpl as unknown as typeof fetch,
+      completePrompt: async () => JSON.stringify(tags()),
     });
 
     const result = await provider.enrich({ id: 'place-2', name: 'New Spot', category: 'cafe' });
@@ -144,26 +136,24 @@ describe('LlmEnrichmentProvider', () => {
   it('throws when the Google Place Details lookup fails', async () => {
     const fetchImpl = jest.fn().mockResolvedValue({ ok: false, status: 404 });
     const provider = new LlmEnrichmentProvider({
-      anthropicApiKey: 'anthropic-key',
       googlePlacesApiKey: 'google-key',
       fetchImpl: fetchImpl as unknown as typeof fetch,
+      completePrompt: async () => JSON.stringify(tags()),
     });
 
     await expect(provider.enrich({ id: 'missing', name: 'Ghost', category: 'cafe' })).rejects.toThrow('status 404');
   });
 
-  it('throws when the Anthropic call fails', async () => {
-    const fetchImpl = jest
-      .fn()
-      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ reviews: [] }) })
-      .mockResolvedValueOnce({ ok: false, status: 500 });
-
+  it('propagates a completion-backend failure', async () => {
+    const fetchImpl = googleFetch({ reviews: [] });
     const provider = new LlmEnrichmentProvider({
-      anthropicApiKey: 'anthropic-key',
       googlePlacesApiKey: 'google-key',
       fetchImpl: fetchImpl as unknown as typeof fetch,
+      completePrompt: async () => {
+        throw new Error('claude CLI exited 1');
+      },
     });
 
-    await expect(provider.enrich({ id: 'place-3', name: 'Cafe', category: 'cafe' })).rejects.toThrow('status 500');
+    await expect(provider.enrich({ id: 'place-3', name: 'Cafe', category: 'cafe' })).rejects.toThrow('claude CLI');
   });
 });
