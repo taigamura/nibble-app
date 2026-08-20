@@ -1,11 +1,12 @@
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Animated, Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Animated, Platform, Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { AppShell } from './src/components/AppShell';
 import { Icon } from './src/components/Icon';
 import { migrateLocalDataToCloud } from './src/auth/migrateToCloud';
-import { isRealBackendConfigured, loadConfig } from './src/config/env';
+import { isMisconfiguredRelease, isRealBackendConfigured, loadConfig, missingBackendKeys } from './src/config/env';
 import { haptics } from './src/haptics';
 import { spring, useReducedMotion } from './src/motion';
 import { SupabaseAppleAuthProvider } from './src/providers/appleAuth';
@@ -91,12 +92,90 @@ function createCloudStore(getSession: () => Promise<AuthSession>): Store | null 
  * the provider to call the hook.
  */
 export default function App() {
+  // Fail-loud guard: a release build must never silently ship on fixture data.
+  // If the backend keys were missing at bundle time, block the app with a
+  // visible error instead of degrading to sample places (generic photos,
+  // wrong-area results). Dev builds keep the intentional fixture fallback.
+  const config = loadConfig();
+  let content: React.ReactNode;
+  if (isMisconfiguredRelease(config)) {
+    const missing = missingBackendKeys(config);
+    console.error(
+      `[nibble] Release build is missing backend configuration: ${missing.join(', ')}. ` +
+        'Refusing to run on fixture data. This build must not be released.',
+    );
+    content = <ReleaseMisconfiguredScreen missingKeys={missing} />;
+  } else {
+    content = (
+      <ThemeProvider>
+        <AppContent />
+      </ThemeProvider>
+    );
+  }
+
+  // GestureHandlerRootView must wrap the whole tree so the card's pan gesture
+  // (react-native-gesture-handler) receives touches on the UI thread.
+  return <GestureHandlerRootView style={guardStyles.gestureRoot}>{content}</GestureHandlerRootView>;
+}
+
+/**
+ * Full-screen, theme-independent block shown only in a misconfigured release
+ * build (see `isMisconfiguredRelease`). Deliberately loud and self-contained
+ * so it renders before any provider or theme is set up.
+ */
+function ReleaseMisconfiguredScreen({ missingKeys }: { missingKeys: string[] }) {
   return (
-    <ThemeProvider>
-      <AppContent />
-    </ThemeProvider>
+    <View style={guardStyles.root}>
+      <Text style={guardStyles.title}>Configuration error</Text>
+      <Text style={guardStyles.body}>
+        This build is missing its backend keys and cannot load real places. It must not be
+        released. Rebuild with the backend environment variables set.
+      </Text>
+      <Text style={guardStyles.missingLabel}>Missing:</Text>
+      {missingKeys.map((key) => (
+        <Text key={key} style={guardStyles.missingKey}>
+          {key}
+        </Text>
+      ))}
+    </View>
   );
 }
+
+const guardStyles = StyleSheet.create({
+  gestureRoot: {
+    flex: 1,
+  },
+  root: {
+    flex: 1,
+    backgroundColor: '#7f1d1d',
+    paddingHorizontal: 28,
+    justifyContent: 'center',
+  },
+  title: {
+    color: '#ffffff',
+    fontSize: 28,
+    fontWeight: '800',
+    marginBottom: 16,
+  },
+  body: {
+    color: '#fecaca',
+    fontSize: 16,
+    lineHeight: 24,
+    marginBottom: 24,
+  },
+  missingLabel: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  missingKey: {
+    color: '#fca5a5',
+    fontSize: 13,
+    fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' }),
+    marginBottom: 4,
+  },
+});
 
 function AppContent() {
   const { colors, type } = useTheme();
