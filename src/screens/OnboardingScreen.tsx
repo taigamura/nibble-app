@@ -6,6 +6,7 @@ import { formatCategory } from '../format';
 import { haptics } from '../haptics';
 import { spring, useReducedMotion, REDUCED_MOTION_DURATION } from '../motion';
 import { seedBeenSignals } from '../onboarding/seedBeenSignals';
+import { FALLBACK_PHOTO_URL } from '../providers/curatedPlace';
 import type { PlacesProvider, Store } from '../providers/types';
 import type { Place } from '../taste-engine';
 import { radius, shadow, spacing, type Palette, type TypeRamp } from '../theme';
@@ -26,6 +27,14 @@ interface OnboardingScreenProps {
   onComplete: () => void;
 }
 
+/**
+ * How many places the onboarding grid surfaces. Capped low so the intro takes
+ * ~a minute rather than scrolling hundreds of rows, and so we never fire a
+ * deck-wide burst of Google photo requests (which got throttled past ~20 and
+ * left later tiles gray).
+ */
+const ONBOARDING_LIMIT = 10;
+
 /** Cold-start "tap everywhere you've been" list (issue #6). */
 export function OnboardingScreen({ placesProvider, store, requestLocation, onComplete }: OnboardingScreenProps) {
   const { colors, type } = useTheme();
@@ -45,7 +54,11 @@ export function OnboardingScreen({ placesProvider, store, requestLocation, onCom
     (async () => {
       const candidates = await placesProvider.getCandidates();
       if (!cancelled) {
-        setPlaces(candidates);
+        // Drop photoless rows (they render as generic picsum "stock" or gray
+        // tiles), then cap to the nearest few. Candidates arrive sorted
+        // nearest-first, so a plain slice keeps the closest real-photo places.
+        const withPhotos = candidates.filter((place) => place.photoUrl !== FALLBACK_PHOTO_URL);
+        setPlaces(withPhotos.slice(0, ONBOARDING_LIMIT));
       }
     })();
     return () => {
@@ -123,7 +136,9 @@ export function OnboardingScreen({ placesProvider, store, requestLocation, onCom
         // Single column: one photo per row, comfortably large and scrollable,
         // instead of a cramped 3-wide grid of thumbnails.
         numColumns={1}
-        showsVerticalScrollIndicator={false}
+        // Show the scroll indicator so the user can gauge how far down the
+        // (now short) list they are.
+        showsVerticalScrollIndicator={true}
         contentContainerStyle={styles.list}
         renderItem={({ item }) => (
           <OnboardingTile
@@ -166,6 +181,9 @@ interface OnboardingTileProps {
 function OnboardingTile({ item, isSelected, styles, colors, reducedMotion, onToggle }: OnboardingTileProps) {
   const scale = useRef(new Animated.Value(1)).current;
   const checkScale = useRef(new Animated.Value(isSelected ? 1 : 0)).current;
+  // When a hero photo fails to load, swap in a neutral initial tile rather than
+  // leaving a bare gray box.
+  const [imageFailed, setImageFailed] = useState(false);
 
   useEffect(() => {
     if (reducedMotion) {
@@ -197,7 +215,17 @@ function OnboardingTile({ item, isSelected, styles, colors, reducedMotion, onTog
       onPress={handlePress}
     >
       <Animated.View style={[styles.tile, isSelected && styles.tileSelected, { transform: [{ scale }] }]}>
-        <Image source={{ uri: item.photoUrl }} style={styles.tileImage} />
+        {imageFailed ? (
+          <View style={[styles.tileImage, styles.tileImageFallback]}>
+            <Text style={styles.tileImageFallbackText}>{item.name.charAt(0).toUpperCase()}</Text>
+          </View>
+        ) : (
+          <Image
+            source={{ uri: item.photoUrl }}
+            style={styles.tileImage}
+            onError={() => setImageFailed(true)}
+          />
+        )}
         <View style={styles.tileBody}>
           <View style={styles.tileTextGroup}>
             <Text style={styles.tileName} numberOfLines={1}>
@@ -282,6 +310,14 @@ function makeStyles(colors: Palette, type: TypeRamp) {
     width: '100%',
     aspectRatio: 16 / 9,
     backgroundColor: colors.fill,
+  },
+  tileImageFallback: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tileImageFallbackText: {
+    ...type.title1,
+    color: colors.secondaryLabel,
   },
   tileBody: {
     flexDirection: 'row',

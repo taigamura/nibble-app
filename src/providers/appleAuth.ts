@@ -52,7 +52,7 @@ export class SupabaseAppleAuthProvider implements AuthProvider {
 
   async signInWithApple(): Promise<AuthSession> {
     const credential = await AppleAuthentication.signInAsync({
-      requestedScopes: [AppleAuthentication.AppleAuthenticationScope.FULL_NAME],
+      requestedScopes: [AppleAuthentication.AppleAuthenticationScope.EMAIL],
     });
     if (!credential.identityToken) {
       throw new Error('Apple sign-in did not return an identity token');
@@ -66,7 +66,12 @@ export class SupabaseAppleAuthProvider implements AuthProvider {
     });
 
     if (!response.ok) {
-      throw new Error(`Supabase Apple sign-in failed with status ${response.status}`);
+      // Read the body so the real Supabase error (e.g. bad_id_token, provider
+      // not enabled, audience mismatch) is visible instead of just the status.
+      const errorBody = await response.text().catch(() => '');
+      throw new Error(
+        `Supabase Apple sign-in failed with status ${response.status}${errorBody ? `: ${errorBody.slice(0, 500)}` : ''}`
+      );
     }
 
     const body = (await response.json()) as SupabaseTokenResponse;

@@ -60,7 +60,8 @@ export function buildPhotoUrl(photoReference: string, apiKey: string, maxWidthPx
   return `https://places.googleapis.com/v1/${photoReference}/media?maxWidthPx=${maxWidthPx}&key=${apiKey}`;
 }
 
-const FALLBACK_PHOTO_URL = 'https://picsum.photos/seed/nibble-placeholder/600/800';
+/** Stock placeholder used when a curated row has no real Google photo reference. */
+export const FALLBACK_PHOTO_URL = 'https://picsum.photos/seed/nibble-placeholder/600/800';
 
 /** Maps a curated DB row + the viewer's location into the taste-engine's Place shape. */
 export function toPlace(row: CuratedPlaceRow, userLocation: GeoPoint, googlePlacesApiKey: string): Place {

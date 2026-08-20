@@ -288,7 +288,12 @@ export function Card({ place, onSwiped, onInfoPress, reason }: CardProps) {
 
   return (
     <GestureDetector gesture={panGesture}>
+      {/* Outer layer casts the shadow only: opaque, rounded, NOT clipped, so
+          iOS renders a cheap transform-stable shadow instead of recomputing it
+          from the clipped alpha mask every frame (the old swipe-lag cause). The
+          inner `cardClip` does the `overflow: hidden` rounding of the content. */}
       <Animated.View testID={`card-${place.id}`} style={[styles.card, cardAnimatedStyle]}>
+        <View style={styles.cardClip}>
         <Image source={{ uri: photos[photoIndex] }} style={styles.photo} />
       {showGallery && (
         <>
@@ -411,6 +416,7 @@ export function Card({ place, onSwiped, onInfoPress, reason }: CardProps) {
           />
         </View>
       )}
+        </View>
       </Animated.View>
     </GestureDetector>
   );
@@ -480,6 +486,17 @@ function makeStyles(colors: Palette, type: TypeRamp) {
     borderRadius: radius.xl,
     backgroundColor: colors.background,
     ...shadow.lg,
+    // NB: no `overflow: 'hidden'` here on purpose. Clipping happens on the
+    // inner `cardClip`; keeping this layer unclipped lets iOS cast the shadow
+    // from its opaque rounded rect (cheap, stable under the drag transform)
+    // rather than re-deriving it from an alpha mask every frame.
+  },
+  // Inner clip layer: rounds and clips the photo/overlays to the card's
+  // corners. Fills the card so all the absolutely-positioned overlays keep the
+  // same coordinates they had when they were direct children of the card.
+  cardClip: {
+    flex: 1,
+    borderRadius: radius.xl,
     overflow: 'hidden',
   },
   photo: {
