@@ -16,7 +16,7 @@
       },
       "icon": {
         "light": "./assets/icon.png",
-        "dark": "./assets/icon.png"
+        "dark": "./assets/icon-dark.png"
       }
     },
     "android": {
