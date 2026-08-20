@@ -25,27 +25,27 @@ describe('runEnrichment', () => {
       [{ place_id: 'p1', name: 'Fuunji', category: 'ramen' }],
       // 2. LlmEnrichmentProvider: Google Place Details
       { reviews: [{ text: { text: 'Great ramen' } }] },
-      // 3. LlmEnrichmentProvider: Anthropic
-      { content: [{ type: 'text', text: JSON.stringify(validTags) }] },
-      // 4. persistTags PATCH
+      // 3. persistTags PATCH
       {},
     );
 
     const result = await runEnrichment({
-      anthropicApiKey: 'a-key',
       googlePlacesApiKey: 'g-key',
       supabaseUrl: 'https://project.supabase.co',
       supabaseServiceRoleKey: 'service-key',
       fetchImpl: fetchImpl as unknown as typeof fetch,
+      completePrompt: async () => JSON.stringify(validTags),
     });
 
     expect(result).toEqual({ tagged: 1, failed: 0 });
-    expect(fetchImpl).toHaveBeenCalledTimes(4);
+    // Three HTTP calls: Supabase select, Google Place Details, Supabase PATCH.
+    // The LLM step is the injected completePrompt, not an HTTP request.
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
 
     const [selectUrl] = fetchImpl.mock.calls[0];
     expect(String(selectUrl)).toContain('tags=eq.%5B%5D');
 
-    const [patchUrl, patchInit] = fetchImpl.mock.calls[3];
+    const [patchUrl, patchInit] = fetchImpl.mock.calls[2];
     expect(String(patchUrl)).toContain('place_id=eq.p1');
     expect((patchInit as RequestInit).method).toBe('PATCH');
     const body = JSON.parse((patchInit as RequestInit).body as string);
@@ -76,21 +76,15 @@ describe('runEnrichment', () => {
     fetchImpl.mockResolvedValueOnce({ ok: false, status: 429, json: async () => ({}) });
     // 3. p2: Google Place Details -> ok
     fetchImpl.mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ reviews: [] }) });
-    // 4. p2: Anthropic -> ok
-    fetchImpl.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      json: async () => ({ content: [{ type: 'text', text: JSON.stringify(validTags) }] }),
-    });
-    // 5. p2: persistTags PATCH -> ok
+    // 4. p2: persistTags PATCH -> ok
     fetchImpl.mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({}) });
 
     const result = await runEnrichment({
-      anthropicApiKey: 'a-key',
       googlePlacesApiKey: 'g-key',
       supabaseUrl: 'https://project.supabase.co',
       supabaseServiceRoleKey: 'service-key',
       fetchImpl: fetchImpl as unknown as typeof fetch,
+      completePrompt: async () => JSON.stringify(validTags),
     });
 
     expect(result).toEqual({ tagged: 1, failed: 1 });
@@ -106,11 +100,11 @@ describe('runEnrichment', () => {
     const fetchImpl = fetchSequence([]);
 
     const result = await runEnrichment({
-      anthropicApiKey: 'a-key',
       googlePlacesApiKey: 'g-key',
       supabaseUrl: 'https://project.supabase.co',
       supabaseServiceRoleKey: 'service-key',
       fetchImpl: fetchImpl as unknown as typeof fetch,
+      completePrompt: async () => JSON.stringify(validTags),
     });
 
     expect(result).toEqual({ tagged: 0, failed: 0 });
