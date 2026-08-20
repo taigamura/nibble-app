@@ -93,6 +93,22 @@ export function applyRating(graph: TasteGraph, placeId: string, rating: number):
   return history.reduce(updateTaste, emptyTasteGraph());
 }
 
+/**
+ * Removes every Nope from the graph, so the places the user passed on become
+ * eligible for the deck again (a place with no surviving history is no longer
+ * excluded -- see `rankDeck`). Their negative taste weight is unwound too,
+ * since the graph is replayed from the kept events. This is the manual "bring
+ * back passed places" action; Nopes never resurface on their own. A no-op when
+ * there are no Nopes to clear, so callers can invoke it unconditionally.
+ */
+export function clearNopes(graph: TasteGraph): TasteGraph {
+  if (!graph.history.some((event) => event.action === 'nope')) {
+    return graph;
+  }
+  const history = graph.history.filter((event) => event.action !== 'nope');
+  return history.reduce(updateTaste, emptyTasteGraph());
+}
+
 export interface Review {
   rating: number;
   /** Subset of the place's tags the user affirmed. Empty is allowed (stars only). */

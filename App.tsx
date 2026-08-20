@@ -24,6 +24,7 @@ import { OnboardingScreen } from './src/screens/OnboardingScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { SignInPromptModal } from './src/screens/SignInPromptModal';
 import { SwipeScreen } from './src/screens/SwipeScreen';
+import { clearNopes } from './src/taste-engine';
 import { ThemeProvider, useTheme } from './src/ThemeProvider';
 import { elevate, spacing, type Palette, type TypeRamp } from './src/theme';
 
@@ -216,6 +217,9 @@ function AppContent() {
   const [signInError, setSignInError] = useState<string | null>(null);
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [homePoint, setHomePoint] = useState<GeoPoint | null>(null);
+  // Bumped after a store mutation made outside the Swipe screen (the Settings
+  // "bring back passed places" action) so the deck re-reads the graph.
+  const [swipeReloadNonce, setSwipeReloadNonce] = useState(0);
 
   const reducedMotion = useReducedMotion();
   const swipeTabScale = useRef(new Animated.Value(1)).current;
@@ -366,6 +370,17 @@ function AppContent() {
     setHomePoint(null);
   };
 
+  // Brings every "not for me" place back into the Discover deck by stripping
+  // the Nope events from the persisted graph. Deliberate and manual (never
+  // automatic): passed-on places otherwise stay gone. Bumps the reload nonce so
+  // a mounted Swipe screen re-reads the refreshed graph from the store.
+  const handleBringBackPassed = async () => {
+    const graph = await store.getGraph();
+    await store.saveGraph(clearNopes(graph));
+    setSwipeReloadNonce((n) => n + 1);
+    setSettingsVisible(false);
+  };
+
   // Non-destructive: replay the intro grid without touching taste data.
   const handleReplayOnboarding = async () => {
     await onboardingState.clear();
@@ -403,6 +418,7 @@ function AppContent() {
                 homePoint={homePoint}
                 onSetHome={handleSetHome}
                 onClearHome={handleClearHome}
+                reloadKey={swipeReloadNonce}
               />
             ) : (
               <CollectionScreen
@@ -493,6 +509,7 @@ function AppContent() {
           void handleSignIn();
         }}
         onSignOut={handleSignOut}
+        onBringBackPassed={handleBringBackPassed}
         onReplayOnboarding={handleReplayOnboarding}
         onResetAllData={handleResetAllData}
       />

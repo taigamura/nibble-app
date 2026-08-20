@@ -7,7 +7,7 @@ import { DEFAULT_RADIUS_METERS, RADIUS_OPTIONS_METERS } from '../config/areas';
 import type { DeckContext, EnrichmentProvider, GeoPoint, PlacesProvider, Store } from '../providers/types';
 import {
   applyRating,
-  DEFAULT_NOPE_COOLDOWN_MS,
+  clearNopes,
   emptyTasteGraph,
   rankDeck,
   updateTaste,
@@ -38,6 +38,12 @@ interface SwipeScreenProps {
   onSetHome?: () => void;
   /** Un-sets Home. */
   onClearHome?: () => void;
+  /**
+   * Bumped by the parent (e.g. after the Settings "bring back passed places"
+   * action mutates the shared store) to force this screen to re-read the graph
+   * from the store. Changing it re-runs the graph-load effect.
+   */
+  reloadKey?: number;
 }
 
 export function SwipeScreen({
@@ -49,6 +55,7 @@ export function SwipeScreen({
   homePoint,
   onSetHome,
   onClearHome,
+  reloadKey,
 }: SwipeScreenProps) {
   const { colors, type } = useTheme();
   const styles = useMemo(() => makeStyles(colors, type), [colors, type]);
@@ -59,10 +66,8 @@ export function SwipeScreen({
   const [detailPlace, setDetailPlace] = useState<Place | null>(null);
   const [deckContext, setDeckContext] = useState<DeckContext>({ radiusMeters: DEFAULT_RADIUS_METERS });
   const [contextControlVisible, setContextControlVisible] = useState(false);
-  // "Reset seen" (empty-deck decision card) flips this to reveal every Nope
-  // immediately by zeroing the cooldown. Confirmed with a second tap since it
-  // can flood the deck with previously-skipped places.
-  const [nopesReset, setNopesReset] = useState(false);
+  // "Reset seen" (empty-deck decision card) is a two-tap confirm since it
+  // brings every place the user passed on back into the deck.
   const [resetSeenArmed, setResetSeenArmed] = useState(false);
   // `seed` is meant to be stable for the life of the session (that's what
   // makes the 70/30 blend "injected" rather than reshuffled on every
@@ -70,10 +75,6 @@ export function SwipeScreen({
   // re-evaluate on every render since no caller passes `seed`, silently
   // re-randomizing the wildcard slice on each swipe/undo. Pin it once.
   const sessionSeed = useRef(seed ?? Date.now()).current;
-  // Stable "now" for the Nope-cooldown calculation, for the same reason
-  // `sessionSeed` is pinned: re-reading Date.now() on every render would
-  // reshuffle which nopes are still excluded on every swipe/undo.
-  const sessionNow = useRef(Date.now()).current;
 
   useEffect(() => {
     let cancelled = false;
@@ -86,7 +87,10 @@ export function SwipeScreen({
     return () => {
       cancelled = true;
     };
-  }, [store]);
+    // `reloadKey` is intentionally a dependency: bumping it (after the Settings
+    // "bring back passed places" action writes to the store) re-reads the graph
+    // so the deck reflects the cleared Nopes without a remount.
+  }, [store, reloadKey]);
 
   // Re-fetches the candidate set whenever the deck's area/radius context
   // changes (issue #10). This only swaps which places are queried -- `graph`
@@ -107,12 +111,8 @@ export function SwipeScreen({
 
   const deck = useMemo(() => {
     if (!candidates) return [];
-    return rankDeck(graph, candidates, {
-      seed: sessionSeed,
-      now: sessionNow,
-      nopeCooldownMs: nopesReset ? 0 : DEFAULT_NOPE_COOLDOWN_MS,
-    });
-  }, [candidates, graph, sessionSeed, sessionNow, nopesReset]);
+    return rankDeck(graph, candidates, { seed: sessionSeed });
+  }, [candidates, graph, sessionSeed]);
 
   const topPlace = deck[0];
   const nextPlace = deck[1];
@@ -172,12 +172,20 @@ export function SwipeScreen({
     setDeckContext((prev) => ({ ...prev, radiusMeters: nextRadius }));
   };
 
+  // Brings every passed-on ("not for me") place back into the deck by stripping
+  // the Nope events from the graph, then persists it so they stay back across
+  // restarts. The undo stack is cleared since its events no longer match the
+  // rewritten graph. Same effect as the Settings "bring back passed places"
+  // action, offered here in-context when the deck runs dry.
   const handleResetSeen = () => {
     if (!resetSeenArmed) {
       setResetSeenArmed(true);
       return;
     }
-    setNopesReset(true);
+    const refreshed = clearNopes(graph);
+    setGraph(refreshed);
+    setUndoStack([]);
+    void store.saveGraph(refreshed);
     setResetSeenArmed(false);
   };
 
