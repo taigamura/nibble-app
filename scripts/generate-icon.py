@@ -7,9 +7,9 @@ orange morsel down in the lower-right corner -- "picking something up from the
 bottom right". Rendered at 4x supersample with Pillow, then downsampled with
 LANCZOS for clean anti-aliased edges (including the rotated chopsticks).
 
-Backgrounds match the in-app canvas so the icon reads as light/dark aware:
-  - light icon: systemGroupedBackground gray, indigo chopsticks
-  - dark icon:  black, cream chopsticks
+Light and dark use the same charcoal gradient (not pure black, so the mark
+doesn't vanish on the dark home screen) with cream chopsticks -- a single
+identical image is used for both iOS appearance modes.
 The orange morsel is shared across both.
 
 Re-run after editing:  python3 scripts/generate-icon.py
@@ -25,18 +25,41 @@ S = SIZE * SS
 
 ASSETS = os.path.join(os.path.dirname(__file__), "..", "assets")
 
-ORANGE = (242, 90, 42)       # shared food morsel
+# The pinched food morsel. Overridable via the MORSEL env var (a #RRGGBB hex)
+# so alternate accent colors can be previewed without editing the source.
+_MORSEL_PRESETS = {
+    "orange": (242, 90, 42),   # #F25A2A
+    "green": (48, 209, 88),    # #30D158 systemGreen (dark)
+    "blue": (10, 132, 255),    # #0A84FF systemBlue (dark)
+}
 
-# Per-variant art direction.
+
+def _resolve_morsel():
+    raw = os.environ.get("MORSEL")
+    if not raw:
+        return _MORSEL_PRESETS["blue"]
+    key = raw.strip().lower()
+    if key in _MORSEL_PRESETS:
+        return _MORSEL_PRESETS[key]
+    hex_ = key.lstrip("#")
+    return tuple(int(hex_[i:i + 2], 16) for i in (0, 2, 4))
+
+
+ORANGE = _resolve_morsel()   # name kept for the draw code below; color now configurable
+
+# Per-variant art direction. One shared look used for both light and dark: a
+# flat #0F0F13 ground -- the exact dark-mode app background from the sibling
+# simple-bookkeeping app (theme/tokens.ts `dark.bg`) -- with cream chopsticks.
+BG = (15, 15, 19)                # #0F0F13 simple-bookkeeping dark app background
 VARIANTS = {
     "icon.png": {
-        "bg_top": (245, 245, 250),      # #F5F5FA -> subtle gradient
-        "bg_bottom": (230, 230, 238),   # #E6E6EE
-        "chopstick": (52, 58, 134),     # #343A86 brand indigo
+        "bg_top": BG,
+        "bg_bottom": BG,
+        "chopstick": (245, 239, 227),   # #F5EFE3 cream
     },
     "icon-dark.png": {
-        "bg_top": (14, 14, 18),         # near-black, faint lift
-        "bg_bottom": (0, 0, 0),         # #000000
+        "bg_top": BG,                   # identical to icon.png
+        "bg_bottom": BG,
         "chopstick": (245, 239, 227),   # #F5EFE3 cream
     },
 }

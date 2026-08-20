@@ -6,6 +6,7 @@ import { OnboardingScreen } from '../OnboardingScreen';
 import { emptyTasteGraph } from '../../taste-engine';
 import type { Place } from '../../taste-engine';
 import type { PlacesProvider, Store } from '../../providers/types';
+import { FALLBACK_PHOTO_URL } from '../../providers/curatedPlace';
 import { ThemeProvider } from '../../ThemeProvider';
 
 const places: Place[] = [
@@ -42,13 +43,13 @@ function makeStore(): Store {
   };
 }
 
-async function renderOnboarding(): Promise<ReactTestRenderer> {
+async function renderOnboarding(provider: PlacesProvider = makePlacesProvider()): Promise<ReactTestRenderer> {
   let renderer!: ReactTestRenderer;
   await act(async () => {
     renderer = TestRenderer.create(
       <ThemeProvider>
         <OnboardingScreen
-          placesProvider={makePlacesProvider()}
+          placesProvider={provider}
           store={makeStore()}
           requestLocation={async () => undefined}
           onComplete={() => {}}
@@ -94,5 +95,28 @@ describe('OnboardingScreen layout (design)', () => {
     const renderer = await renderOnboarding();
     const cont = renderer.root.findByProps({ accessibilityLabel: 'Continue to deck' });
     expect(cont).toBeTruthy();
+  });
+
+  it('caps the grid to 10 places and drops photoless (fallback-image) rows', async () => {
+    const many: Place[] = Array.from({ length: 25 }, (_, i) => ({
+      id: `p${i}`,
+      name: `Place ${i}`,
+      category: 'ramen',
+      tags: [],
+      priceBand: '$$',
+      rating: 4,
+      distanceMeters: i * 10,
+      // Every third place has no real photo (uses the stock fallback URL).
+      photoUrl: i % 3 === 0 ? FALLBACK_PHOTO_URL : `https://example.com/${i}.jpg`,
+    }));
+    const provider: PlacesProvider = { getCandidates: async () => many };
+    const renderer = await renderOnboarding(provider);
+
+    const images = renderer.root.findAllByType(Image);
+    expect(images.length).toBeLessThanOrEqual(10);
+    // No surfaced tile points at the fallback stock image.
+    for (const image of images) {
+      expect(image.props.source.uri).not.toBe(FALLBACK_PHOTO_URL);
+    }
   });
 });

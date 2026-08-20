@@ -4,7 +4,7 @@ import { SupabaseAppleAuthProvider } from '../appleAuth';
 
 jest.mock('expo-apple-authentication', () => ({
   signInAsync: jest.fn(),
-  AppleAuthenticationScope: { FULL_NAME: 0 },
+  AppleAuthenticationScope: { EMAIL: 0 },
 }));
 
 function fakeStorage() {
@@ -47,6 +47,9 @@ describe('SupabaseAppleAuthProvider', () => {
 
     const session = await provider.signInWithApple();
 
+    expect(AppleAuthentication.signInAsync).toHaveBeenCalledWith({
+      requestedScopes: [AppleAuthentication.AppleAuthenticationScope.EMAIL],
+    });
     expect(session).toEqual({ userId: 'user-1', accessToken: 'sb-token' });
     const [url, init] = fetchImpl.mock.calls[0];
     expect(String(url)).toContain('/auth/v1/token?grant_type=id_token');
@@ -82,7 +85,7 @@ describe('SupabaseAppleAuthProvider', () => {
 
   it('throws when the Supabase token exchange fails', async () => {
     (AppleAuthentication.signInAsync as jest.Mock).mockResolvedValue({ identityToken: 'apple-token' });
-    const fetchImpl = jest.fn().mockResolvedValue({ ok: false, status: 401 });
+    const fetchImpl = jest.fn().mockResolvedValue({ ok: false, status: 401, text: async () => '' });
     const provider = new SupabaseAppleAuthProvider({
       supabaseUrl: 'https://project.supabase.co',
       supabaseAnonKey: 'anon-key',
@@ -91,6 +94,23 @@ describe('SupabaseAppleAuthProvider', () => {
     });
 
     await expect(provider.signInWithApple()).rejects.toThrow('status 401');
+  });
+
+  it('includes the Supabase response body in the thrown error for debugging', async () => {
+    (AppleAuthentication.signInAsync as jest.Mock).mockResolvedValue({ identityToken: 'apple-token' });
+    const fetchImpl = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 400,
+      text: async () => '{"error":"invalid_grant","error_description":"bad_id_token"}',
+    });
+    const provider = new SupabaseAppleAuthProvider({
+      supabaseUrl: 'https://project.supabase.co',
+      supabaseAnonKey: 'anon-key',
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      storage: fakeStorage(),
+    });
+
+    await expect(provider.signInWithApple()).rejects.toThrow('bad_id_token');
   });
 
   it('signOut clears the in-memory session and the persisted session', async () => {
