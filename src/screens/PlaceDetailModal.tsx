@@ -1,11 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
-  Dimensions,
   Image,
   Linking,
   Modal,
-  PanResponder,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -14,6 +12,7 @@ import {
 } from 'react-native';
 
 import { Icon } from '../components/Icon';
+import { SheetScrim, useSheetDetents } from '../components/sheetGestures';
 import { formatCategory } from '../format';
 import { haptics } from '../haptics';
 import { spring, useReducedMotion } from '../motion';
@@ -141,53 +140,16 @@ export function PlaceDetailModal({
   const [draftRating, setDraftRating] = useState<number>(rating ?? 0);
   const [draftTags, setDraftTags] = useState<string[]>(reviewTags ?? []);
 
-  // Drag-to-dismiss: the sheet follows a downward drag on its grabber handle
-  // and closes once pulled past a distance/velocity threshold, matching the
-  // native iOS sheet gesture. `onCloseRef` keeps the (stable) PanResponder
-  // reading the latest onClose without re-creating the responder each render.
-  const screenHeight = Dimensions.get('window').height;
-  const translateY = useRef(new Animated.Value(0)).current;
-  const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
-
-  const panResponder = useRef(
-    PanResponder.create({
-      // Only claim a clearly-downward drag, so a tap on the handle still passes
-      // through and horizontal movement never hijacks the gesture.
-      onMoveShouldSetPanResponder: (_evt, gesture) =>
-        gesture.dy > 6 && Math.abs(gesture.dy) > Math.abs(gesture.dx),
-      onPanResponderMove: (_evt, gesture) => {
-        // Follow downward drags 1:1; ignore upward pull (the sheet is already
-        // at rest at the top).
-        translateY.setValue(Math.max(0, gesture.dy));
-      },
-      onPanResponderRelease: (_evt, gesture) => {
-        if (gesture.dy > 120 || gesture.vy > 0.8) {
-          haptics.selection();
-          Animated.timing(translateY, {
-            toValue: screenHeight,
-            duration: 200,
-            useNativeDriver: true,
-          }).start(() => {
-            translateY.setValue(0);
-            onCloseRef.current();
-          });
-        } else {
-          Animated.spring(translateY, {
-            toValue: 0,
-            useNativeDriver: true,
-            ...spring.snappy,
-          }).start();
-        }
-      },
-    })
-  ).current;
+  // Two-detent sheet (medium -> full on swipe up) + drag-down-to-dismiss +
+  // tap-the-scrim-to-dismiss, shared across the app's bottom sheets. See
+  // components/sheetGestures.
+  const { translateY, panHandlers, sheetHeight, reset } = useSheetDetents(onClose);
 
   // Snap the sheet back to its resting position whenever a new place opens, so
   // a prior drag-close never leaves the next open translated off-screen.
   useEffect(() => {
-    translateY.setValue(0);
-  }, [place?.id, translateY]);
+    reset();
+  }, [place?.id, reset]);
 
   // Reset the draft whenever a different place (or its saved review) opens,
   // so the stars/chips reflect this place rather than the last one reviewed.
@@ -217,12 +179,13 @@ export function PlaceDetailModal({
   return (
     <Modal visible={place !== null} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.backdrop}>
-        <Animated.View style={[styles.sheet, { transform: [{ translateY }] }]}>
-          <View style={styles.grabberZone} {...panResponder.panHandlers}>
+        <SheetScrim onPress={onClose} />
+        <Animated.View style={[styles.sheet, { height: sheetHeight, transform: [{ translateY }] }]}>
+          <View style={styles.grabberZone} {...panHandlers}>
             <View style={styles.grabber} />
           </View>
           {place && (
-            <ScrollView>
+            <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
               <Image source={{ uri: place.photoUrl }} style={styles.photo} />
               <View style={styles.body}>
                 <Text style={styles.name}>{place.name}</Text>
@@ -347,11 +310,19 @@ function makeStyles(colors: Palette, type: TypeRamp) {
     justifyContent: 'flex-end',
   },
   sheet: {
-    maxHeight: '88%',
     backgroundColor: colors.background,
     borderTopLeftRadius: radius.xl,
     borderTopRightRadius: radius.xl,
     overflow: 'hidden',
+  },
+  // Flexes to fill the space between the grabber and the pinned action
+  // buttons, so long content scrolls while the footer stays put -- and so the
+  // extra room from expanding to the large detent becomes scrollable area.
+  scroll: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
   },
   // The drag target at the top of the sheet. Kept a touch taller than the
   // grabber pill itself so there's a comfortable area to start the pull-down.

@@ -98,7 +98,10 @@ export const darkColors: Palette = {
   labelOnColor: '#FFFFFF',
 
   background: '#1C1C1E', // secondarySystemBackground (dark) -- cards, bars
-  groupedBackground: '#000000', // systemGroupedBackground (dark) -- canvas
+  // The global dark canvas. Matches simple-bookkeeping's dark app background
+  // (theme/tokens.ts `dark.bg` = #0F0F13) rather than pure black, so the app
+  // reads as the same soft-charcoal system across both apps.
+  groupedBackground: '#0F0F13',
   elevatedBackground: '#2C2C2E',
 
   separator: 'rgba(84,84,88,0.6)',

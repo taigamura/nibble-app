@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Image, Linking, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { SheetScrim, useDragToDismiss } from '../components/sheetGestures';
 import { rankTonight } from '../collection/tonight';
 import { applyAnswer, nextQuestion, type DrillAxis } from '../collection/tonightDrilldown';
 import { formatCategory } from '../format';
@@ -77,6 +78,13 @@ export function TonightSheet({ visible, wantPlaces, vector, onClose, seed }: Ton
   const styles = useMemo(() => makeStyles(colors, type), [colors, type]);
   const reducedMotion = useReducedMotion();
   const sessionSeed = useRef(seed ?? Date.now()).current;
+  const { translateY, panHandlers, reset } = useDragToDismiss(onClose);
+
+  // Snap back to rest each time the sheet reopens, so a prior drag-close never
+  // leaves the next open translated off-screen.
+  useEffect(() => {
+    if (visible) reset();
+  }, [visible, reset]);
 
   const [mode, setMode] = useState<'drill' | 'result' | 'random'>('drill');
   const [answers, setAnswers] = useState<Answer[]>([]);
@@ -172,8 +180,11 @@ export function TonightSheet({ visible, wantPlaces, vector, onClose, seed }: Ton
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.backdrop}>
-        <View style={styles.sheet}>
-          <View style={styles.grabber} />
+        <SheetScrim onPress={onClose} />
+        <Animated.View style={[styles.sheet, { transform: [{ translateY }] }]}>
+          <View style={styles.grabberZone} {...panHandlers}>
+            <View style={styles.grabber} />
+          </View>
           <View style={styles.header}>
             <Text style={styles.title}>Where to?</Text>
             {showRandomizer && (
@@ -283,7 +294,7 @@ export function TonightSheet({ visible, wantPlaces, vector, onClose, seed }: Ton
           <Pressable accessibilityLabel="Close tonight suggestion" style={styles.close} onPress={onClose}>
             <Text style={styles.closeText}>Close</Text>
           </Pressable>
-        </View>
+        </Animated.View>
       </View>
     </Modal>
   );
@@ -304,13 +315,18 @@ function makeStyles(colors: Palette, type: TypeRamp) {
     paddingBottom: spacing.xl,
     paddingTop: spacing.sm,
   },
+  // Taller than the pill itself so there's a comfortable area to start the
+  // pull-down drag (mirrors PlaceDetailModal's grabberZone).
+  grabberZone: {
+    alignItems: 'center',
+    paddingTop: spacing.xs,
+    paddingBottom: spacing.md,
+  },
   grabber: {
-    alignSelf: 'center',
     width: 36,
     height: 5,
     borderRadius: radius.pill,
     backgroundColor: colors.separator,
-    marginBottom: spacing.md,
   },
   header: {
     flexDirection: 'row',
