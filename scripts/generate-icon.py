@@ -37,7 +37,9 @@ _MORSEL_PRESETS = {
 def _resolve_morsel():
     raw = os.environ.get("MORSEL")
     if not raw:
-        return _MORSEL_PRESETS["blue"]
+        # Orange, so the pinched morsel reads as a piece of food rather than a
+        # generic blue dot.
+        return _MORSEL_PRESETS["orange"]
     key = raw.strip().lower()
     if key in _MORSEL_PRESETS:
         return _MORSEL_PRESETS[key]
@@ -122,13 +124,27 @@ def build(variant):
     paste_chopstick(img, *stick_b, thickness, cfg["chopstick"])
 
     # Morsel sits over the tips so it reads as pinched between the sticks.
+    # Drawn as a slightly rounded blob (a touch wider than tall) with a soft
+    # lighter highlight, so it reads as a dimensional piece of food rather than
+    # a flat dot.
     morsel_c = (sc(712), sc(716))
-    morsel_r = sc(126)
+    morsel_rx = sc(132)
+    morsel_ry = sc(120)
     d = ImageDraw.Draw(img)
-    d.ellipse(
-        [morsel_c[0] - morsel_r, morsel_c[1] - morsel_r,
-         morsel_c[0] + morsel_r, morsel_c[1] + morsel_r],
+    d.rounded_rectangle(
+        [morsel_c[0] - morsel_rx, morsel_c[1] - morsel_ry,
+         morsel_c[0] + morsel_rx, morsel_c[1] + morsel_ry],
+        radius=sc(108),
         fill=ORANGE,
+    )
+    # Specular highlight: a small, lighter ellipse toward the upper-left of the
+    # morsel, the way light catches a glazed piece of food.
+    hi = tuple(min(255, c + 70) for c in ORANGE)
+    hi_cx, hi_cy = morsel_c[0] - sc(44), morsel_c[1] - sc(44)
+    hi_rx, hi_ry = sc(46), sc(34)
+    d.ellipse(
+        [hi_cx - hi_rx, hi_cy - hi_ry, hi_cx + hi_rx, hi_cy + hi_ry],
+        fill=hi,
     )
 
     out = img.resize((SIZE, SIZE), Image.LANCZOS).convert("RGB")

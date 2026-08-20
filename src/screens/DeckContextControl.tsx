@@ -1,7 +1,8 @@
-import React, { useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { Animated, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { Icon } from '../components/Icon';
+import { SheetScrim, useDragToDismiss } from '../components/sheetGestures';
 import { DECK_AREAS, RADIUS_OPTIONS_METERS } from '../config/areas';
 import { haptics } from '../haptics';
 import { spring, useReducedMotion } from '../motion';
@@ -91,6 +92,12 @@ export function DeckContextControl({
   const { colors, type } = useTheme();
   const styles = useMemo(() => makeStyles(colors, type), [colors, type]);
   const reducedMotion = useReducedMotion();
+  const { translateY, panHandlers, reset } = useDragToDismiss(onClose);
+
+  useEffect(() => {
+    if (visible) reset();
+  }, [visible, reset]);
+
   const homeSelected = pointsEqual(context.center, homePoint);
   const selectedAreaId =
     context.center && !homeSelected
@@ -127,7 +134,11 @@ export function DeckContextControl({
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.backdrop}>
-        <View style={styles.sheet}>
+        <SheetScrim onPress={onClose} />
+        <Animated.View style={[styles.sheet, { transform: [{ translateY }] }]}>
+          <View style={styles.grabberZone} {...panHandlers}>
+            <View style={styles.grabber} />
+          </View>
           <Text style={styles.title}>Deck area</Text>
 
           <Text style={styles.sectionLabel}>Radius</Text>
@@ -222,7 +233,7 @@ export function DeckContextControl({
           <PressScale accessibilityLabel="Done" style={styles.done} reducedMotion={reducedMotion} onPress={handleDone}>
             <Text style={styles.doneText}>Done</Text>
           </PressScale>
-        </View>
+        </Animated.View>
       </View>
     </Modal>
   );
@@ -239,8 +250,21 @@ function makeStyles(colors: Palette, type: TypeRamp) {
       backgroundColor: colors.background,
       borderTopLeftRadius: 20,
       borderTopRightRadius: 20,
-      padding: 24,
+      paddingHorizontal: 24,
+      paddingBottom: 24,
+      paddingTop: 8,
       maxHeight: '70%',
+    },
+    grabberZone: {
+      alignItems: 'center',
+      paddingTop: 4,
+      paddingBottom: 12,
+    },
+    grabber: {
+      width: 36,
+      height: 5,
+      borderRadius: 999,
+      backgroundColor: colors.separator,
     },
     title: {
       ...type.title2,
