@@ -97,23 +97,32 @@ function RatingStar({ n, colors, styles, reducedMotion, onRate }: RatingStarProp
 
 function makeStyles(colors: Palette, type: TypeRamp) {
   return StyleSheet.create({
+    // Fills the screen and centers the prompt, so the rating card lands in the
+    // middle of view rather than reading as another card in the deck. Kept
+    // `pointerEvents: box-none` (set on the wrapper in the JSX) so the deck
+    // outside the card stays swipeable.
     wrapper: {
       position: 'absolute',
       left: 0,
       right: 0,
-      bottom: 96,
+      top: 0,
+      bottom: 0,
       alignItems: 'center',
+      justifyContent: 'center',
     },
+    // A distinct 2px accent outline (the "been" green) plus a heavier shadow
+    // sets this apart from the discovery cards, which use a hairline neutral
+    // border. It reads as a focused prompt, not another deck card.
     card: {
-      width: '88%',
-      borderRadius: 16,
+      width: '84%',
+      borderRadius: 20,
       backgroundColor: colors.background,
-      paddingVertical: 16,
-      paddingHorizontal: 20,
+      paddingVertical: 20,
+      paddingHorizontal: 24,
       alignItems: 'center',
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: colors.separator,
-      ...elevate(8, 24, 0.28, 14),
+      borderWidth: 2,
+      borderColor: colors.been,
+      ...elevate(16, 40, 0.4, 24),
     },
     title: {
       ...type.subheadline,
