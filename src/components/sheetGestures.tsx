@@ -1,6 +1,14 @@
-import React, { useCallback, useRef } from 'react';
+import React, { useCallback, useMemo, useRef } from 'react';
 import { Animated, Dimensions, Pressable, StyleSheet } from 'react-native';
 import { PanResponder } from 'react-native';
+import { Gesture } from 'react-native-gesture-handler';
+import {
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
 
 import { haptics } from '../haptics';
 import { useT } from '../i18n';
@@ -94,10 +102,18 @@ export function useDragToDismiss(onClose: () => void) {
  *   - down from large -> back to medium
  *   - down from medium past the threshold -> dismiss
  *
+ * Built on `react-native-gesture-handler`'s `Gesture.Pan()` + Reanimated shared
+ * values rather than a bare `PanResponder` -- inside a RN `Modal`, PanResponder
+ * gesture arbitration is unreliable (see Card.tsx for the same idiom used by
+ * the swipe deck, which works there). The detent and gesture-start offset are
+ * held as shared values (not refs) so the `onStart`/`onUpdate`/`onEnd` worklets
+ * can read/write them on the UI thread without a JS round-trip.
+ *
  * Returns `sheetHeight` (apply as the sheet's fixed height so its inner
- * ScrollView has a bound to scroll within) and `translateY` (apply to the
- * transform). Because the grabber owns this pan, an inner ScrollView scrolls
- * independently without fighting the drag.
+ * ScrollView has a bound to scroll within), `animatedStyle` (spread onto the
+ * Reanimated `Animated.View` sheet container) and `gesture` (pass to a
+ * `GestureDetector` wrapping the grabber zone). Because the grabber owns this
+ * pan, an inner ScrollView scrolls independently without fighting the drag.
  */
 export function useSheetDetents(
   onClose: () => void,
@@ -112,85 +128,92 @@ export function useSheetDetents(
   const mediumOffset = large - medium;
   const dismissOffset = large;
 
-  const translateY = useRef(new Animated.Value(mediumOffset)).current;
-  // Where the current gesture began, and which detent we're resting in.
-  const detentRef = useRef<'medium' | 'large'>('medium');
-  const gestureStartRef = useRef(mediumOffset);
+  const translateY = useSharedValue(mediumOffset);
+  // Which detent we're resting in, and where the current gesture began.
+  const detent = useSharedValue<'medium' | 'large'>('medium');
+  const gestureStartY = useSharedValue(mediumOffset);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
 
-  const settleTo = (detent: 'medium' | 'large') => {
-    detentRef.current = detent;
-    Animated.spring(translateY, {
-      toValue: detent === 'large' ? largeOffset : mediumOffset,
-      useNativeDriver: true,
-      ...spring.snappy,
-    }).start();
-  };
-
-  const dismiss = () => {
-    haptics.selection();
-    Animated.timing(translateY, {
-      toValue: dismissOffset,
-      duration: 200,
-      useNativeDriver: true,
-    }).start(() => {
-      detentRef.current = 'medium';
-      translateY.setValue(mediumOffset);
-      onCloseRef.current();
-    });
-  };
+  const fireHaptic = () => haptics.selection();
+  const commitClose = () => onCloseRef.current();
 
   // Stable identity so a consuming effect can depend on it without re-running
   // (and snapping the sheet back to medium) on every unrelated render.
   const reset = useCallback(() => {
-    detentRef.current = 'medium';
-    translateY.setValue(mediumOffset);
-  }, [translateY, mediumOffset]);
+    detent.value = 'medium';
+    translateY.value = mediumOffset;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mediumOffset]);
 
-  const panResponder = useRef(
-    PanResponder.create({
-      onMoveShouldSetPanResponder: (_evt, gesture) =>
-        Math.abs(gesture.dy) > 6 && Math.abs(gesture.dy) > Math.abs(gesture.dx),
-      onPanResponderGrant: () => {
-        gestureStartRef.current = detentRef.current === 'large' ? largeOffset : mediumOffset;
-      },
-      onPanResponderMove: (_evt, gesture) => {
-        // Clamp so an upward overpull can't rise above the large detent, but a
-        // downward pull can travel all the way to the dismiss position.
-        const next = Math.min(dismissOffset, Math.max(largeOffset, gestureStartRef.current + gesture.dy));
-        translateY.setValue(next);
-      },
-      onPanResponderRelease: (_evt, gesture) => {
-        const pos = Math.min(dismissOffset, Math.max(largeOffset, gestureStartRef.current + gesture.dy));
-        const flungDown = gesture.vy > 0.8;
-        const flungUp = gesture.vy < -0.8;
+  const gesture = useMemo(
+    () =>
+      Gesture.Pan()
+        .onStart(() => {
+          'worklet';
+          gestureStartY.value = detent.value === 'large' ? largeOffset : mediumOffset;
+        })
+        .onUpdate((e) => {
+          'worklet';
+          // Clamp so an upward overpull can't rise above the large detent, but
+          // a downward pull can travel all the way to the dismiss position.
+          translateY.value = Math.min(
+            dismissOffset,
+            Math.max(largeOffset, gestureStartY.value + e.translationY)
+          );
+        })
+        .onEnd((e) => {
+          'worklet';
+          const pos = Math.min(
+            dismissOffset,
+            Math.max(largeOffset, gestureStartY.value + e.translationY)
+          );
+          // gesture-handler reports velocity in px/s (unlike RN PanResponder's
+          // px/ms `vy`), so the flick gate is 800 px/s here, not 0.8.
+          const flungDown = e.velocityY > 800;
+          const flungUp = e.velocityY < -800;
 
-        // A decisive downward flick dismisses regardless of current detent
-        // (native iOS feel: a quick flick on the grabber closes from anywhere).
-        if (flungDown && gesture.dy > 40) {
-          dismiss();
-          return;
-        }
+          // A decisive downward flick dismisses regardless of current detent
+          // (native iOS feel: a quick flick on the grabber closes from
+          // anywhere). Past the medium detent (plus slack) also dismisses.
+          const shouldDismiss = (flungDown && e.translationY > 40) || pos > mediumOffset + 80;
 
-        // Past the medium detent (plus slack) -> dismiss.
-        if (pos > mediumOffset + 80) {
-          dismiss();
-          return;
-        }
-        if (flungUp) {
-          settleTo('large');
-          return;
-        }
-        if (flungDown) {
-          settleTo('medium');
-          return;
-        }
-        // Otherwise snap to whichever detent is nearer.
-        settleTo(pos < mediumOffset / 2 ? 'large' : 'medium');
-      },
-    })
-  ).current;
+          if (shouldDismiss) {
+            runOnJS(fireHaptic)();
+            translateY.value = withTiming(dismissOffset, { duration: 200 }, (finished) => {
+              if (finished) {
+                detent.value = 'medium';
+                translateY.value = mediumOffset;
+                runOnJS(commitClose)();
+              }
+            });
+            return;
+          }
 
-  return { translateY, panHandlers: panResponder.panHandlers, sheetHeight: large, reset };
+          if (flungUp) {
+            detent.value = 'large';
+            translateY.value = withSpring(largeOffset, spring.snappy);
+            return;
+          }
+          if (flungDown) {
+            detent.value = 'medium';
+            translateY.value = withSpring(mediumOffset, spring.snappy);
+            return;
+          }
+          // Otherwise snap to whichever detent is nearer.
+          const nearest = pos < mediumOffset / 2 ? 'large' : 'medium';
+          detent.value = nearest;
+          translateY.value = withSpring(nearest === 'large' ? largeOffset : mediumOffset, spring.snappy);
+        }),
+    // Shared values/refs are stable identities; only rebuild if the detent
+    // geometry itself changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [largeOffset, mediumOffset, dismissOffset]
+  );
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.value }],
+  }));
+
+  return { gesture, animatedStyle, sheetHeight: large, reset };
 }

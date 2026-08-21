@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, ActivityIndicator, FlatList, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image } from 'expo-image';
 
 import {
   getBeenCategoryStats,
@@ -297,7 +298,13 @@ function PlaceRow({ entry, styles, reducedMotion, onSelect, onMarkBeen }: PlaceR
         onPressIn={pressIn}
         onPressOut={pressOut}
       >
-        <Image source={{ uri: entry.place.photoUrl }} style={styles.rowImage} />
+        <Image
+          source={{ uri: entry.place.photoUrl }}
+          style={styles.rowImage}
+          cachePolicy="memory-disk"
+          contentFit="cover"
+          transition={200}
+        />
         <View style={styles.rowBody}>
           <Text style={styles.rowName}>{entry.place.name}</Text>
           <Text style={styles.rowMeta}>

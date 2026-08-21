@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, ActivityIndicator, FlatList, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image } from 'expo-image';
 
 import { Icon } from '../components/Icon';
 import { formatCategory } from '../format';
@@ -226,6 +227,9 @@ function OnboardingTile({ item, isSelected, styles, colors, reducedMotion, onTog
           <Image
             source={{ uri: item.photoUrl }}
             style={styles.tileImage}
+            cachePolicy="memory-disk"
+            contentFit="cover"
+            transition={200}
             onError={() => setImageFailed(true)}
           />
         )}
