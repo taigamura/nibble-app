@@ -74,8 +74,10 @@ describe('CollectionScreen — I went (markBeen)', () => {
     });
 
     // markBeen reopens the detail modal for review -- close it, then confirm
-    // the place is gone from the Want tab's own list.
-    const closeButton = renderer.root.findByProps({ accessibilityLabel: 'Close place detail' });
+    // the place is gone from the Want tab's own list. The sheet now has two
+    // controls sharing this label (the always-reachable top-right X and the
+    // bottom text button); either closes it the same way, so just take one.
+    const [closeButton] = renderer.root.findAllByProps({ accessibilityLabel: 'Close place detail' });
     await act(async () => {
       closeButton.props.onPress();
     });

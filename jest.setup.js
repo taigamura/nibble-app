@@ -25,6 +25,19 @@ jest.mock('react-native-reanimated', () => {
   };
 });
 
+// expo-image renders through a native view under Jest. The tests only assert on
+// the source uri / props, so stub it with a plain RN Image-like element and a
+// no-op static `prefetch`, mirroring how the code calls `Image.prefetch(...)`.
+jest.mock('expo-image', () => {
+  const React = require('react');
+  const { Image: RNImage } = require('react-native');
+  const Image = (props) => React.createElement(RNImage, props);
+  Image.prefetch = jest.fn(() => Promise.resolve(true));
+  Image.clearMemoryCache = jest.fn(() => Promise.resolve());
+  Image.clearDiskCache = jest.fn(() => Promise.resolve());
+  return { __esModule: true, Image };
+});
+
 // Gesture Handler's real GestureDetector pulls in the full Reanimated runtime.
 // The design tests only inspect Card's rendered children, not gesture behavior,
 // so render children straight through and make Gesture.* a chainable no-op.

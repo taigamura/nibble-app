@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
@@ -296,7 +297,13 @@ export function Card({ place, onSwiped, onInfoPress, reason }: CardProps) {
           inner `cardClip` does the `overflow: hidden` rounding of the content. */}
       <Animated.View testID={`card-${place.id}`} style={[styles.card, cardAnimatedStyle]}>
         <View style={styles.cardClip}>
-        <Image source={{ uri: photos[photoIndex] }} style={styles.photo} />
+        <Image
+          source={{ uri: photos[photoIndex] }}
+          style={styles.photo}
+          cachePolicy="memory-disk"
+          contentFit="cover"
+          transition={200}
+        />
       {showGallery && (
         <>
           {/* Instagram-style segmented indicator: one segment per photo, the

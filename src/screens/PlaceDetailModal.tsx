@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
-  Image,
   Linking,
   Modal,
   Pressable,
@@ -10,6 +9,9 @@ import {
   Text,
   View,
 } from 'react-native';
+import { Image } from 'expo-image';
+import { GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
+import ReanimatedAnimated from 'react-native-reanimated';
 
 import { Icon } from '../components/Icon';
 import { SheetScrim, useSheetDetents } from '../components/sheetGestures';
@@ -146,7 +148,7 @@ export function PlaceDetailModal({
   // Two-detent sheet (medium -> full on swipe up) + drag-down-to-dismiss +
   // tap-the-scrim-to-dismiss, shared across the app's bottom sheets. See
   // components/sheetGestures.
-  const { translateY, panHandlers, sheetHeight, reset } = useSheetDetents(onClose);
+  const { gesture, animatedStyle, sheetHeight, reset } = useSheetDetents(onClose);
 
   // Snap the sheet back to its resting position whenever a new place opens, so
   // a prior drag-close never leaves the next open translated off-screen.
@@ -181,15 +183,36 @@ export function PlaceDetailModal({
 
   return (
     <Modal visible={place !== null} animationType="slide" transparent onRequestClose={onClose}>
+      {/* RNGH gestures don't work inside a RN Modal unless the modal's own
+          content tree has its own GestureHandlerRootView -- the app-root one
+          doesn't cover Modal content on iOS (Modal is a separate host view). */}
+      <GestureHandlerRootView style={styles.rootView}>
       <View style={styles.backdrop}>
         <SheetScrim onPress={onClose} />
-        <Animated.View style={[styles.sheet, { height: sheetHeight, transform: [{ translateY }] }]}>
-          <View style={styles.grabberZone} {...panHandlers}>
-            <View style={styles.grabber} />
-          </View>
+        <ReanimatedAnimated.View style={[styles.sheet, { height: sheetHeight }, animatedStyle]}>
+          <GestureDetector gesture={gesture}>
+            <View style={styles.grabberZone}>
+              <View style={styles.grabber} />
+            </View>
+          </GestureDetector>
+          {/* Always-reachable close button, floating over the photo regardless
+              of scroll position or which detent the sheet is resting at. */}
+          <Pressable
+            accessibilityLabel={t('placeDetail.a11y.closeDetail')}
+            style={styles.closeButton}
+            onPress={onClose}
+          >
+            <Icon name="close" size={20} color="#fff" />
+          </Pressable>
           {place && (
             <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-              <Image source={{ uri: place.photoUrl }} style={styles.photo} />
+              <Image
+                source={{ uri: place.photoUrl }}
+                style={styles.photo}
+                cachePolicy="memory-disk"
+                contentFit="cover"
+                transition={200}
+              />
               <View style={styles.body}>
                 <Text style={styles.name}>{place.name}</Text>
                 <Text style={styles.meta}>
@@ -280,29 +303,35 @@ export function PlaceDetailModal({
                 >
                   <Text style={[styles.actionText, styles.directionsText]}>{t('placeDetail.openInMaps')}</Text>
                 </PressScale>
-                <PressScale
-                  reducedMotion={reducedMotion}
-                  containerStyle={styles.actionFlex}
-                  accessibilityLabel={t('placeDetail.a11y.writeGoogleReview')}
-                  style={[styles.actionButton, styles.googleReview]}
-                  onPress={() => Linking.openURL(buildWriteReviewUrl(place))}
-                >
-                  <Text style={styles.actionText}>{t('placeDetail.googleReview')}</Text>
-                </PressScale>
+                {onSubmitReview && (
+                  <PressScale
+                    reducedMotion={reducedMotion}
+                    containerStyle={styles.actionFlex}
+                    accessibilityLabel={t('placeDetail.a11y.writeGoogleReview')}
+                    style={[styles.actionButton, styles.googleReview]}
+                    onPress={() => Linking.openURL(buildWriteReviewUrl(place))}
+                  >
+                    <Text style={styles.actionText}>{t('placeDetail.googleReview')}</Text>
+                  </PressScale>
+                )}
               </View>
               <Pressable accessibilityLabel={t('placeDetail.a11y.closeDetail')} style={styles.close} onPress={onClose}>
                 <Text style={styles.closeText}>{t('common.close')}</Text>
               </Pressable>
             </ScrollView>
           )}
-        </Animated.View>
+        </ReanimatedAnimated.View>
       </View>
+      </GestureHandlerRootView>
     </Modal>
   );
 }
 
 function makeStyles(colors: Palette, type: TypeRamp) {
   return StyleSheet.create({
+  rootView: {
+    flex: 1,
+  },
   backdrop: {
     flex: 1,
     backgroundColor: colors.scrim,
@@ -313,6 +342,21 @@ function makeStyles(colors: Palette, type: TypeRamp) {
     borderTopLeftRadius: radius.xl,
     borderTopRightRadius: radius.xl,
     overflow: 'hidden',
+  },
+  // Always-visible top-right close button, floating over the photo as a
+  // sibling of the ScrollView so it's reachable regardless of scroll
+  // position or which detent the sheet is resting at.
+  closeButton: {
+    position: 'absolute',
+    top: spacing.lg,
+    right: spacing.md,
+    zIndex: 1,
+    width: 32,
+    height: 32,
+    borderRadius: radius.pill,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   // Flexes to fill the space between the grabber and the pinned action
   // buttons, so long content scrolls while the footer stays put -- and so the

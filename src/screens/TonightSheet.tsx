@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Image, Linking, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Linking, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image } from 'expo-image';
 
 import { SheetScrim, useDragToDismiss } from '../components/sheetGestures';
 import { rankTonight } from '../collection/tonight';
@@ -244,7 +245,13 @@ export function TonightSheet({ visible, wantPlaces, vector, onClose, seed }: Ton
           ) : (
             <>
               <View style={styles.card}>
-                <Image source={{ uri: pick.photoUrl }} style={styles.photo} />
+                <Image
+                  source={{ uri: pick.photoUrl }}
+                  style={styles.photo}
+                  cachePolicy="memory-disk"
+                  contentFit="cover"
+                  transition={200}
+                />
                 <View style={styles.cardBody}>
                   <Text style={styles.name}>{pick.name}</Text>
                   <Text style={styles.meta}>
