@@ -3,6 +3,7 @@ import { Animated, Dimensions, Pressable, StyleSheet } from 'react-native';
 import { PanResponder } from 'react-native';
 
 import { haptics } from '../haptics';
+import { useT } from '../i18n';
 import { spring } from '../motion';
 
 /**
@@ -22,9 +23,10 @@ import { spring } from '../motion';
  * paints on top and only taps on the exposed scrim reach this handler.
  */
 export function SheetScrim({ onPress }: { onPress: () => void }) {
+  const t = useT();
   return (
     <Pressable
-      accessibilityLabel="Dismiss"
+      accessibilityLabel={t('common.dismiss')}
       style={StyleSheet.absoluteFill}
       onPress={onPress}
     />
@@ -164,9 +166,15 @@ export function useSheetDetents(
         const flungDown = gesture.vy > 0.8;
         const flungUp = gesture.vy < -0.8;
 
-        // Past the medium detent (plus slack) or flung down while already at
-        // medium -> dismiss.
-        if (pos > mediumOffset + 80 || (flungDown && detentRef.current === 'medium' && gesture.dy > 40)) {
+        // A decisive downward flick dismisses regardless of current detent
+        // (native iOS feel: a quick flick on the grabber closes from anywhere).
+        if (flungDown && gesture.dy > 40) {
+          dismiss();
+          return;
+        }
+
+        // Past the medium detent (plus slack) -> dismiss.
+        if (pos > mediumOffset + 80) {
           dismiss();
           return;
         }

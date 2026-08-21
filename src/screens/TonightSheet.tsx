@@ -6,6 +6,7 @@ import { rankTonight } from '../collection/tonight';
 import { applyAnswer, nextQuestion, type DrillAxis } from '../collection/tonightDrilldown';
 import { formatCategory } from '../format';
 import { haptics } from '../haptics';
+import { useT } from '../i18n';
 import { spring, useReducedMotion } from '../motion';
 import type { Place, TasteVector } from '../taste-engine';
 import { seededShuffle, whySurfaced } from '../taste-engine';
@@ -24,10 +25,10 @@ interface TonightSheetProps {
   seed?: number;
 }
 
-const AXIS_QUESTION: Record<DrillAxis, string> = {
-  cuisine: 'What do you want to eat?',
-  price: 'What price range?',
-  vibe: 'What kind of vibe?',
+const AXIS_QUESTION_KEY: Record<DrillAxis, 'tonight.question.cuisine' | 'tonight.question.price' | 'tonight.question.vibe'> = {
+  cuisine: 'tonight.question.cuisine',
+  price: 'tonight.question.price',
+  vibe: 'tonight.question.vibe',
 };
 
 /** One answered drill step; `value: null` means the user picked "Any". */
@@ -75,6 +76,7 @@ function PressScale({
 
 export function TonightSheet({ visible, wantPlaces, vector, onClose, seed }: TonightSheetProps) {
   const { colors, type } = useTheme();
+  const t = useT();
   const styles = useMemo(() => makeStyles(colors, type), [colors, type]);
   const reducedMotion = useReducedMotion();
   const sessionSeed = useRef(seed ?? Date.now()).current;
@@ -186,23 +188,21 @@ export function TonightSheet({ visible, wantPlaces, vector, onClose, seed }: Ton
             <View style={styles.grabber} />
           </View>
           <View style={styles.header}>
-            <Text style={styles.title}>Where to?</Text>
+            <Text style={styles.title}>{t('collection.whereTo')}</Text>
             {showRandomizer && (
-              <Pressable accessibilityLabel="Just pick for me" onPress={handleRandomPick}>
-                <Text style={styles.randomLink}>just pick for me 🎲</Text>
+              <Pressable accessibilityLabel={t('tonight.a11y.randomPick')} onPress={handleRandomPick}>
+                <Text style={styles.randomLink}>{t('tonight.randomLink')}</Text>
               </Pressable>
             )}
           </View>
 
           {wantPlaces.length === 0 ? (
             <View style={styles.empty}>
-              <Text style={styles.emptyText}>
-                Swipe right on a few places first, then I can pick one for you.
-              </Text>
+              <Text style={styles.emptyText}>{t('tonight.emptyNoWant')}</Text>
             </View>
           ) : mode === 'drill' && question ? (
             <>
-              <Text style={styles.question}>{AXIS_QUESTION[question.axis]}</Text>
+              <Text style={styles.question}>{t(AXIS_QUESTION_KEY[question.axis])}</Text>
               <View style={styles.chipRow}>
                 {question.options.map((value) => {
                   // Cuisine options are raw category slugs (e.g. `coffee_shop`);
@@ -212,7 +212,7 @@ export function TonightSheet({ visible, wantPlaces, vector, onClose, seed }: Ton
                   return (
                     <PressScale
                       key={value}
-                      accessibilityLabel={`Choose ${label}`}
+                      accessibilityLabel={t('tonight.a11y.choose', { label })}
                       style={styles.chip}
                       reducedMotion={reducedMotion}
                       onPress={() => handleAnswer(question.axis, value)}
@@ -222,26 +222,24 @@ export function TonightSheet({ visible, wantPlaces, vector, onClose, seed }: Ton
                   );
                 })}
                 <PressScale
-                  accessibilityLabel="No preference"
+                  accessibilityLabel={t('tonight.a11y.noPreference')}
                   style={[styles.chip, styles.chipAny]}
                   reducedMotion={reducedMotion}
                   onPress={() => handleAnswer(question.axis, null)}
                 >
-                  <Text style={styles.chipText}>Any</Text>
+                  <Text style={styles.chipText}>{t('tonight.any')}</Text>
                 </PressScale>
               </View>
 
               {canGoBack && (
-                <Pressable accessibilityLabel="Back" style={styles.textButton} onPress={handleBack}>
-                  <Text style={styles.textButtonText}>Back</Text>
+                <Pressable accessibilityLabel={t('common.back')} style={styles.textButton} onPress={handleBack}>
+                  <Text style={styles.textButtonText}>{t('common.back')}</Text>
                 </Pressable>
               )}
             </>
           ) : !pick ? (
             <View style={styles.empty}>
-              <Text style={styles.emptyText}>
-                That&apos;s every Want spot for now. Swipe more to get fresh ideas.
-              </Text>
+              <Text style={styles.emptyText}>{t('tonight.emptyNoMore')}</Text>
             </View>
           ) : (
             <>
@@ -250,49 +248,50 @@ export function TonightSheet({ visible, wantPlaces, vector, onClose, seed }: Ton
                 <View style={styles.cardBody}>
                   <Text style={styles.name}>{pick.name}</Text>
                   <Text style={styles.meta}>
-                    {formatCategory(pick.category)} · {pick.priceBand} · {Math.round(pick.distanceMeters)}m away
+                    {formatCategory(pick.category)} · {pick.priceBand} ·{' '}
+                    {t('tonight.distanceAway', { distance: Math.round(pick.distanceMeters) })}
                   </Text>
                   {reason && <Text style={styles.reason}>{reason}</Text>}
                 </View>
               </View>
 
               <PressScale
-                accessibilityLabel={`Let's go to ${pick.name}`}
+                accessibilityLabel={t('tonight.a11y.letsGo', { name: pick.name })}
                 style={[styles.button, styles.go]}
                 reducedMotion={reducedMotion}
                 onPress={handleGo}
               >
-                <Text style={[styles.buttonText, styles.goText]}>Let&apos;s go</Text>
+                <Text style={[styles.buttonText, styles.goText]}>{t('tonight.letsGo')}</Text>
               </PressScale>
               <PressScale
-                accessibilityLabel="Suggest another"
+                accessibilityLabel={t('tonight.a11y.suggestAnother')}
                 accessibilityState={{ disabled: isLast }}
                 style={[styles.button, styles.next, isLast && styles.buttonDisabled]}
                 reducedMotion={reducedMotion}
                 onPress={() => !isLast && handleAnother()}
               >
                 <Text style={styles.buttonText}>
-                  {isLast ? 'No more nearby' : 'Show another'}
+                  {isLast ? t('tonight.noMoreNearby') : t('tonight.showAnother')}
                 </Text>
               </PressScale>
 
               <View style={styles.footerRow}>
                 {canGoBack && (
-                  <Pressable accessibilityLabel="Back" style={styles.textButton} onPress={handleBack}>
-                    <Text style={styles.textButtonText}>Back</Text>
+                  <Pressable accessibilityLabel={t('common.back')} style={styles.textButton} onPress={handleBack}>
+                    <Text style={styles.textButtonText}>{t('common.back')}</Text>
                   </Pressable>
                 )}
                 {(answers.length > 0 || mode === 'random') && (
-                  <Pressable accessibilityLabel="Start over" style={styles.textButton} onPress={handleStartOver}>
-                    <Text style={styles.textButtonText}>Start over</Text>
+                  <Pressable accessibilityLabel={t('tonight.startOver')} style={styles.textButton} onPress={handleStartOver}>
+                    <Text style={styles.textButtonText}>{t('tonight.startOver')}</Text>
                   </Pressable>
                 )}
               </View>
             </>
           )}
 
-          <Pressable accessibilityLabel="Close tonight suggestion" style={styles.close} onPress={onClose}>
-            <Text style={styles.closeText}>Close</Text>
+          <Pressable accessibilityLabel={t('tonight.a11y.close')} style={styles.close} onPress={onClose}>
+            <Text style={styles.closeText}>{t('common.close')}</Text>
           </Pressable>
         </Animated.View>
       </View>

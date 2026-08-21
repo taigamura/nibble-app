@@ -18,6 +18,7 @@ import { useTheme } from '../ThemeProvider';
 import { formatCategory } from '../format';
 import { spring, REDUCED_MOTION_DURATION, useReducedMotion } from '../motion';
 import { haptics } from '../haptics';
+import { useT } from '../i18n';
 import { Icon } from './Icon';
 
 const SWIPE_THRESHOLD = 120;
@@ -94,6 +95,7 @@ function targetFor(action: SwipeAction): { x: number; y: number } {
 
 export function Card({ place, onSwiped, onInfoPress, reason }: CardProps) {
   const { colors, type } = useTheme();
+  const t = useT();
   const styles = useMemo(() => makeStyles(colors, type), [colors, type]);
   const reducedMotion = useReducedMotion();
   // Only the interactive (top) card breathes in on mount; the non-interactive
@@ -315,13 +317,13 @@ export function Card({ place, onSwiped, onInfoPress, reason }: CardProps) {
               center is left inert so a mis-tap while reading doesn't page. */}
           <Pressable
             testID={`photo-prev-${place.id}`}
-            accessibilityLabel="Previous photo"
+            accessibilityLabel={t('card.a11y.prevPhoto')}
             style={[styles.tapZone, styles.tapZonePrev]}
             onPress={() => step(-1)}
           />
           <Pressable
             testID={`photo-next-${place.id}`}
-            accessibilityLabel="Next photo"
+            accessibilityLabel={t('card.a11y.nextPhoto')}
             style={[styles.tapZone, styles.tapZoneNext]}
             onPress={() => step(1)}
           />
@@ -357,7 +359,7 @@ export function Card({ place, onSwiped, onInfoPress, reason }: CardProps) {
       )}
       {onInfoPress && (
         <Pressable
-          accessibilityLabel={`View details for ${place.name}`}
+          accessibilityLabel={t('card.a11y.viewDetails', { name: place.name })}
           style={styles.infoButton}
           onPress={() => onInfoPress(place)}
         >
@@ -389,8 +391,8 @@ export function Card({ place, onSwiped, onInfoPress, reason }: CardProps) {
           <ActionSegment
             testID={`action-nope-${place.id}`}
             icon="nope"
-            label="Not for me"
-            hint="Swipe left"
+            label={t('card.notForMe')}
+            hint={t('card.hint.swipeLeft')}
             styles={styles}
             colors={colors}
             onPress={() => flyOut('nope')}
@@ -398,8 +400,8 @@ export function Card({ place, onSwiped, onInfoPress, reason }: CardProps) {
           <ActionSegment
             testID={`action-been-${place.id}`}
             icon="been"
-            label="Been"
-            hint="Swipe up"
+            label={t('card.been')}
+            hint={t('card.hint.swipeUp')}
             styles={styles}
             colors={colors}
             onPress={() => flyOut('been')}
@@ -407,8 +409,8 @@ export function Card({ place, onSwiped, onInfoPress, reason }: CardProps) {
           <ActionSegment
             testID={`action-want-${place.id}`}
             icon="collection-active"
-            label="Save"
-            hint="Swipe right"
+            label={t('card.save')}
+            hint={t('card.hint.swipeRight')}
             primary
             styles={styles}
             colors={colors}

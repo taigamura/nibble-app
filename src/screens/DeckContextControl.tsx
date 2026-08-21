@@ -5,6 +5,7 @@ import { Icon } from '../components/Icon';
 import { SheetScrim, useDragToDismiss } from '../components/sheetGestures';
 import { DECK_AREAS, RADIUS_OPTIONS_METERS } from '../config/areas';
 import { haptics } from '../haptics';
+import { useT } from '../i18n';
 import { spring, useReducedMotion } from '../motion';
 import type { DeckContext, GeoPoint } from '../providers/types';
 import { useTheme } from '../ThemeProvider';
@@ -82,7 +83,7 @@ function PressScale({ onPress, style, accessibilityLabel, accessibilityState, re
 export function DeckContextControl({
   visible,
   context,
-  currentLocationLabel = 'Current location',
+  currentLocationLabel: currentLocationLabelProp,
   homePoint,
   onSetHome,
   onClearHome,
@@ -90,6 +91,8 @@ export function DeckContextControl({
   onClose,
 }: DeckContextControlProps) {
   const { colors, type } = useTheme();
+  const t = useT();
+  const currentLocationLabel = currentLocationLabelProp ?? t('deck.currentLocation');
   const styles = useMemo(() => makeStyles(colors, type), [colors, type]);
   const reducedMotion = useReducedMotion();
   const { translateY, panHandlers, reset } = useDragToDismiss(onClose);
@@ -139,14 +142,14 @@ export function DeckContextControl({
           <View style={styles.grabberZone} {...panHandlers}>
             <View style={styles.grabber} />
           </View>
-          <Text style={styles.title}>Deck area</Text>
+          <Text style={styles.title}>{t('deck.title')}</Text>
 
-          <Text style={styles.sectionLabel}>Radius</Text>
+          <Text style={styles.sectionLabel}>{t('deck.radius')}</Text>
           <View style={styles.row}>
             {RADIUS_OPTIONS_METERS.map((meters) => (
               <PressScale
                 key={meters}
-                accessibilityLabel={`Radius ${formatRadius(meters)}`}
+                accessibilityLabel={t('deck.a11y.radius', { label: formatRadius(meters) })}
                 accessibilityState={{ selected: context.radiusMeters === meters }}
                 style={[styles.chip, context.radiusMeters === meters && styles.chipActive]}
                 reducedMotion={reducedMotion}
@@ -159,7 +162,7 @@ export function DeckContextControl({
             ))}
           </View>
 
-          <Text style={styles.sectionLabel}>Area</Text>
+          <Text style={styles.sectionLabel}>{t('deck.area')}</Text>
           <ScrollView>
             <PressScale
               accessibilityLabel={currentLocationLabel}
@@ -174,7 +177,7 @@ export function DeckContextControl({
             </PressScale>
             {homePoint && (
               <PressScale
-                accessibilityLabel="Home"
+                accessibilityLabel={t('common.home')}
                 accessibilityState={{ selected: homeSelected }}
                 style={[styles.chip, styles.areaRow, styles.homeChip, homeSelected && styles.chipActive]}
                 reducedMotion={reducedMotion}
@@ -186,7 +189,7 @@ export function DeckContextControl({
                   color={homeSelected ? colors.labelOnColor : colors.label}
                   style={styles.homeIcon}
                 />
-                <Text style={[styles.chipText, homeSelected && styles.chipTextActive]}>Home</Text>
+                <Text style={[styles.chipText, homeSelected && styles.chipTextActive]}>{t('common.home')}</Text>
               </PressScale>
             )}
             {DECK_AREAS.map((area) => (
@@ -208,30 +211,30 @@ export function DeckContextControl({
           {onSetHome && (
             <View style={styles.homeActions}>
               <PressScale
-                accessibilityLabel={homePoint ? 'Update Home to current location' : 'Set current location as Home'}
+                accessibilityLabel={homePoint ? t('deck.updateHome') : t('deck.setHome')}
                 style={styles.homeAction}
                 reducedMotion={reducedMotion}
                 onPress={handleSetHome}
               >
                 <Text style={styles.homeActionText}>
-                  {homePoint ? 'Update Home to current location' : 'Set current location as Home'}
+                  {homePoint ? t('deck.updateHome') : t('deck.setHome')}
                 </Text>
               </PressScale>
               {homePoint && onClearHome && (
                 <PressScale
-                  accessibilityLabel="Clear Home"
+                  accessibilityLabel={t('deck.clearHome')}
                   style={styles.homeAction}
                   reducedMotion={reducedMotion}
                   onPress={handleClearHome}
                 >
-                  <Text style={styles.homeActionClear}>Clear Home</Text>
+                  <Text style={styles.homeActionClear}>{t('deck.clearHome')}</Text>
                 </PressScale>
               )}
             </View>
           )}
 
-          <PressScale accessibilityLabel="Done" style={styles.done} reducedMotion={reducedMotion} onPress={handleDone}>
-            <Text style={styles.doneText}>Done</Text>
+          <PressScale accessibilityLabel={t('common.done')} style={styles.done} reducedMotion={reducedMotion} onPress={handleDone}>
+            <Text style={styles.doneText}>{t('common.done')}</Text>
           </PressScale>
         </Animated.View>
       </View>

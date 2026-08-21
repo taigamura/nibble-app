@@ -4,6 +4,7 @@ import { Animated, ActivityIndicator, FlatList, Image, Pressable, StyleSheet, Te
 import { Icon } from '../components/Icon';
 import { formatCategory } from '../format';
 import { haptics } from '../haptics';
+import { useT } from '../i18n';
 import { spring, useReducedMotion, REDUCED_MOTION_DURATION } from '../motion';
 import { seedBeenSignals } from '../onboarding/seedBeenSignals';
 import { FALLBACK_PHOTO_URL } from '../providers/curatedPlace';
@@ -38,6 +39,7 @@ const ONBOARDING_LIMIT = 10;
 /** Cold-start "tap everywhere you've been" list (issue #6). */
 export function OnboardingScreen({ placesProvider, store, requestLocation, onComplete }: OnboardingScreenProps) {
   const { colors, type } = useTheme();
+  const t = useT();
   const styles = useMemo(() => makeStyles(colors, type), [colors, type]);
   const reducedMotion = useReducedMotion();
   const [places, setPlaces] = useState<Place[] | null>(null);
@@ -115,19 +117,17 @@ export function OnboardingScreen({ placesProvider, store, requestLocation, onCom
     <View style={styles.container}>
       <View style={styles.header}>
         <View style={styles.headerText}>
-          <Text style={styles.title}>Where have you been?</Text>
-          <Text style={styles.subtitle}>
-            Tap everywhere you recognize. It takes about a minute, and it teaches your deck what you like.
-          </Text>
+          <Text style={styles.title}>{t('onboarding.title')}</Text>
+          <Text style={styles.subtitle}>{t('onboarding.subtitle')}</Text>
         </View>
         <Pressable
-          accessibilityLabel="Skip onboarding"
+          accessibilityLabel={t('onboarding.a11y.skip')}
           accessibilityRole="button"
           style={({ pressed }) => [styles.skip, pressed && styles.pressed]}
           onPress={() => void finish(new Set())}
           disabled={finishing}
         >
-          <Text style={styles.skipText}>Skip</Text>
+          <Text style={styles.skipText}>{t('common.skip')}</Text>
         </Pressable>
       </View>
       <FlatList
@@ -153,14 +153,16 @@ export function OnboardingScreen({ placesProvider, store, requestLocation, onCom
       />
       <View style={styles.footer}>
         <Pressable
-          accessibilityLabel="Continue to deck"
+          accessibilityLabel={t('onboarding.a11y.continue')}
           accessibilityRole="button"
           onPress={pressContinue}
           disabled={finishing}
         >
           <Animated.View style={[styles.done, { transform: [{ scale: continueScale }] }]}>
             <Text style={styles.doneText}>
-              {selected.size > 0 ? `Continue — ${selected.size} been` : 'Continue'}
+              {selected.size > 0
+                ? t('onboarding.continueWithCount', { count: selected.size })
+                : t('onboarding.continue')}
             </Text>
           </Animated.View>
         </Pressable>
@@ -179,6 +181,7 @@ interface OnboardingTileProps {
 }
 
 function OnboardingTile({ item, isSelected, styles, colors, reducedMotion, onToggle }: OnboardingTileProps) {
+  const t = useT();
   const scale = useRef(new Animated.Value(1)).current;
   const checkScale = useRef(new Animated.Value(isSelected ? 1 : 0)).current;
   // When a hero photo fails to load, swap in a neutral initial tile rather than
@@ -209,7 +212,7 @@ function OnboardingTile({ item, isSelected, styles, colors, reducedMotion, onTog
 
   return (
     <Pressable
-      accessibilityLabel={`Been to ${item.name}`}
+      accessibilityLabel={t('onboarding.a11y.beenTo', { name: item.name })}
       accessibilityRole="checkbox"
       accessibilityState={{ selected: isSelected, checked: isSelected }}
       onPress={handlePress}

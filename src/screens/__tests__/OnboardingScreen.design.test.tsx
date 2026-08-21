@@ -3,11 +3,21 @@ import TestRenderer, { act, type ReactTestRenderer } from 'react-test-renderer';
 import { FlatList, Image, Text } from 'react-native';
 
 import { OnboardingScreen } from '../OnboardingScreen';
+import { LanguageProvider } from '../../i18n';
+import type { Language } from '../../i18n';
+import { LanguageState } from '../../settings/languageState';
 import { emptyTasteGraph } from '../../taste-engine';
 import type { Place } from '../../taste-engine';
 import type { PlacesProvider, Store } from '../../providers/types';
 import { FALLBACK_PHOTO_URL } from '../../providers/curatedPlace';
 import { ThemeProvider } from '../../ThemeProvider';
+
+/** Forces English so these design tests can assert on the (unchanged) English strings. */
+class EnglishLanguageState extends LanguageState {
+  async get(): Promise<Language> {
+    return 'en';
+  }
+}
 
 const places: Place[] = [
   {
@@ -47,14 +57,16 @@ async function renderOnboarding(provider: PlacesProvider = makePlacesProvider())
   let renderer!: ReactTestRenderer;
   await act(async () => {
     renderer = TestRenderer.create(
-      <ThemeProvider>
-        <OnboardingScreen
-          placesProvider={provider}
-          store={makeStore()}
-          requestLocation={async () => undefined}
-          onComplete={() => {}}
-        />
-      </ThemeProvider>
+      <LanguageProvider languageState={new EnglishLanguageState()}>
+        <ThemeProvider>
+          <OnboardingScreen
+            placesProvider={provider}
+            store={makeStore()}
+            requestLocation={async () => undefined}
+            onComplete={() => {}}
+          />
+        </ThemeProvider>
+      </LanguageProvider>
     );
   });
   // Flush the async getCandidates() effect.

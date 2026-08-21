@@ -3,6 +3,7 @@ import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Icon } from './Icon';
 import { haptics } from '../haptics';
+import { useT } from '../i18n';
 import { REDUCED_MOTION_DURATION, spring, useReducedMotion } from '../motion';
 import { useTheme } from '../ThemeProvider';
 import { elevate, type Palette, type TypeRamp } from '../theme';
@@ -22,6 +23,7 @@ const STARS = [1, 2, 3, 4, 5];
  */
 export function RatingPrompt({ placeName, onRate, onSkip }: RatingPromptProps) {
   const { colors, type } = useTheme();
+  const t = useT();
   const styles = useMemo(() => makeStyles(colors, type), [colors, type]);
   const reducedMotion = useReducedMotion();
   const translateY = useRef(new Animated.Value(reducedMotion ? 0 : 12)).current;
@@ -43,14 +45,14 @@ export function RatingPrompt({ placeName, onRate, onSkip }: RatingPromptProps) {
   return (
     <View style={[styles.wrapper, { pointerEvents: 'box-none' }]}>
       <Animated.View style={[styles.card, { opacity, transform: [{ translateY }] }]}>
-        <Text style={styles.title}>How was {placeName}?</Text>
+        <Text style={styles.title}>{t('ratingPrompt.title', { name: placeName })}</Text>
         <View style={styles.stars}>
           {STARS.map((n) => (
             <RatingStar key={n} n={n} colors={colors} styles={styles} reducedMotion={reducedMotion} onRate={onRate} />
           ))}
         </View>
-        <Pressable accessibilityLabel="Skip rating" style={styles.skip} onPress={onSkip}>
-          <Text style={styles.skipText}>Skip</Text>
+        <Pressable accessibilityLabel={t('ratingPrompt.a11y.skip')} style={styles.skip} onPress={onSkip}>
+          <Text style={styles.skipText}>{t('common.skip')}</Text>
         </Pressable>
       </Animated.View>
     </View>
@@ -66,6 +68,7 @@ interface RatingStarProps {
 }
 
 function RatingStar({ n, colors, styles, reducedMotion, onRate }: RatingStarProps) {
+  const t = useT();
   const scale = useRef(new Animated.Value(1)).current;
 
   const handlePress = () => {
@@ -81,7 +84,7 @@ function RatingStar({ n, colors, styles, reducedMotion, onRate }: RatingStarProp
 
   return (
     <Pressable
-      accessibilityLabel={`Rate ${n} star${n === 1 ? '' : 's'}`}
+      accessibilityLabel={t('common.a11y.rateStars', { n, plural: n === 1 ? '' : 's' })}
       style={styles.starButton}
       onPress={handlePress}
     >
@@ -108,7 +111,9 @@ function makeStyles(colors: Palette, type: TypeRamp) {
       paddingVertical: 16,
       paddingHorizontal: 20,
       alignItems: 'center',
-      ...elevate(4, 10, 0.2, 8),
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.separator,
+      ...elevate(8, 24, 0.28, 14),
     },
     title: {
       ...type.subheadline,

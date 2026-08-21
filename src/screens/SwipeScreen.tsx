@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Card } from '../components/Card';
 import { RatingPrompt } from '../components/RatingPrompt';
@@ -19,6 +19,7 @@ import { PlaceDetailModal } from './PlaceDetailModal';
 import { SettingsButton } from '../components/SettingsButton';
 import { Icon } from '../components/Icon';
 import { haptics } from '../haptics';
+import { useT } from '../i18n';
 import { radius, shadow, spacing, type Palette, type TypeRamp } from '../theme';
 import { useTheme } from '../ThemeProvider';
 
@@ -58,6 +59,7 @@ export function SwipeScreen({
   reloadKey,
 }: SwipeScreenProps) {
   const { colors, type } = useTheme();
+  const t = useT();
   const styles = useMemo(() => makeStyles(colors, type), [colors, type]);
   const [candidates, setCandidates] = useState<Place[] | null>(null);
   const [graph, setGraph] = useState<TasteGraph>(emptyTasteGraph());
@@ -75,6 +77,12 @@ export function SwipeScreen({
   // re-evaluate on every render since no caller passes `seed`, silently
   // re-randomizing the wildcard slice on each swipe/undo. Pin it once.
   const sessionSeed = useRef(seed ?? Date.now()).current;
+
+  // Always holds the latest graph, so the stable-order deck ranking below can
+  // read current taste without depending on `graph` (which would re-rank on
+  // every swipe -- see the `deck` comment further down).
+  const graphRef = useRef(graph);
+  graphRef.current = graph;
 
   useEffect(() => {
     let cancelled = false;
@@ -109,10 +117,35 @@ export function SwipeScreen({
     };
   }, [placesProvider, deckContext]);
 
-  const deck = useMemo(() => {
+  // Ranked once per candidate set (stable order for the session) rather than
+  // depending on `graph` -- every swipe calls updateTaste, which changes
+  // graph.vector/history, and re-ranking on that would reorder the deck out
+  // from under the previewed next card (issue: deck reorders on every swipe).
+  // Newly-learned taste still applies on the next candidate refetch or
+  // restart, since `candidates` changing recomputes this.
+  const rankedDeck = useMemo(() => {
     if (!candidates) return [];
-    return rankDeck(graph, candidates, { seed: sessionSeed });
-  }, [candidates, graph, sessionSeed]);
+    return rankDeck(graphRef.current, candidates, { seed: sessionSeed });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [candidates, sessionSeed]);
+
+  // Derives the visible deck by filtering actioned places out of the stable
+  // order above, so Nope/Want/Been drop off the front without reordering the
+  // rest.
+  const actionedIds = useMemo(() => new Set(graph.history.map((e) => e.place.id)), [graph.history]);
+  const deck = useMemo(() => rankedDeck.filter((p) => !actionedIds.has(p.id)), [rankedDeck, actionedIds]);
+
+  // Prefetch the hero photo of the next few cards so they don't flash/reload
+  // right after a swipe promotes the behind card.
+  useEffect(() => {
+    deck.slice(0, 4).forEach((p) => {
+      try {
+        Image.prefetch?.(p.photoUrl)?.catch?.(() => {});
+      } catch {
+        // Image.prefetch is a no-op on some platforms/test envs; ignore.
+      }
+    });
+  }, [deck]);
 
   const topPlace = deck[0];
   const nextPlace = deck[1];
@@ -200,8 +233,8 @@ export function SwipeScreen({
         <View style={styles.headerLeft}>
           {undoStack.length > 0 && (
             <Pressable
-              accessibilityLabel="Undo"
-              accessibilityHint="Undo your last swipe"
+              accessibilityLabel={t('swipe.a11y.undo')}
+              accessibilityHint={t('swipe.a11y.undoHint')}
               style={({ pressed }) => [styles.headerButton, pressed && styles.pressed]}
               onPress={handleUndo}
             >
@@ -209,7 +242,7 @@ export function SwipeScreen({
             </Pressable>
           )}
           <Pressable
-            accessibilityLabel="Change deck area"
+            accessibilityLabel={t('swipe.a11y.changeArea')}
             style={({ pressed }) => [styles.areaButton, pressed && styles.pressed]}
             onPress={() => setContextControlVisible(true)}
           >
@@ -228,35 +261,35 @@ export function SwipeScreen({
         {candidates && !topPlace && (
           <View style={styles.center}>
             <View style={styles.emptyCard}>
-              <Text style={styles.emptyTitle}>That&apos;s everyone nearby for now.</Text>
-              <Text style={styles.emptySubtitle}>Here are a few ways to keep going.</Text>
+              <Text style={styles.emptyTitle}>{t('swipe.emptyTitle')}</Text>
+              <Text style={styles.emptySubtitle}>{t('swipe.emptySubtitle')}</Text>
               <View style={styles.emptyActions}>
                 {nextRadius && (
                   <Pressable
-                    accessibilityLabel="Widen search radius"
+                    accessibilityLabel={t('swipe.a11y.widenRadius')}
                     style={({ pressed }) => [styles.emptyButton, styles.emptyButtonPrimary, pressed && styles.pressed]}
                     onPress={handleWiden}
                   >
-                    <Text style={styles.emptyButtonPrimaryText}>Widen the search</Text>
+                    <Text style={styles.emptyButtonPrimaryText}>{t('swipe.widenSearch')}</Text>
                   </Pressable>
                 )}
                 <Pressable
-                  accessibilityLabel="Reset seen places"
-                  accessibilityHint="Brings back places you already passed on"
+                  accessibilityLabel={t('swipe.a11y.resetSeenPlaces')}
+                  accessibilityHint={t('swipe.a11y.resetSeenHint')}
                   style={({ pressed }) => [styles.emptyButton, pressed && styles.pressed]}
                   onPress={handleResetSeen}
                 >
                   <Text style={styles.emptyButtonText}>
-                    {resetSeenArmed ? 'Tap again to confirm' : 'Reset seen'}
+                    {resetSeenArmed ? t('swipe.resetSeenConfirm') : t('swipe.resetSeen')}
                   </Text>
                 </Pressable>
                 {onGoToWant && (
                   <Pressable
-                    accessibilityLabel="See Want list"
+                    accessibilityLabel={t('swipe.seeWantList')}
                     style={({ pressed }) => [styles.emptyButton, pressed && styles.pressed]}
                     onPress={onGoToWant}
                   >
-                    <Text style={styles.emptyButtonText}>See Want list</Text>
+                    <Text style={styles.emptyButtonText}>{t('swipe.seeWantList')}</Text>
                   </Pressable>
                 )}
               </View>

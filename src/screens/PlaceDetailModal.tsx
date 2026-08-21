@@ -15,6 +15,7 @@ import { Icon } from '../components/Icon';
 import { SheetScrim, useSheetDetents } from '../components/sheetGestures';
 import { formatCategory } from '../format';
 import { haptics } from '../haptics';
+import { useT } from '../i18n';
 import { spring, useReducedMotion } from '../motion';
 import type { Place } from '../taste-engine';
 import { radius, spacing, type Palette, type TypeRamp } from '../theme';
@@ -94,6 +95,7 @@ interface ReviewStarProps {
 
 /** One review star: filled/outline by draft rating, with a pop + haptic on tap. */
 function ReviewStar({ n, filled, colors, styles, reducedMotion, onPress }: ReviewStarProps) {
+  const t = useT();
   const scale = useRef(new Animated.Value(1)).current;
 
   const handlePress = () => {
@@ -109,7 +111,7 @@ function ReviewStar({ n, filled, colors, styles, reducedMotion, onPress }: Revie
 
   return (
     <Pressable
-      accessibilityLabel={`Rate ${n} star${n === 1 ? '' : 's'}`}
+      accessibilityLabel={t('common.a11y.rateStars', { n, plural: n === 1 ? '' : 's' })}
       accessibilityState={{ selected: filled }}
       style={styles.starButton}
       onPress={handlePress}
@@ -135,6 +137,7 @@ export function PlaceDetailModal({
   onClose,
 }: PlaceDetailModalProps) {
   const { colors, type } = useTheme();
+  const t = useT();
   const styles = useMemo(() => makeStyles(colors, type), [colors, type]);
   const reducedMotion = useReducedMotion();
   const [draftRating, setDraftRating] = useState<number>(rating ?? 0);
@@ -205,10 +208,8 @@ export function PlaceDetailModal({
 
                 {onSubmitReview && (
                   <View style={styles.review}>
-                    <Text style={styles.reviewTitle}>Your review</Text>
-                    <Text style={styles.reviewSub}>
-                      Rate it to sharpen your recommendations. Stays private.
-                    </Text>
+                    <Text style={styles.reviewTitle}>{t('placeDetail.yourReview')}</Text>
+                    <Text style={styles.reviewSub}>{t('placeDetail.reviewSubtitle')}</Text>
                     <View style={styles.stars}>
                       {STARS.map((n) => (
                         <ReviewStar
@@ -224,7 +225,7 @@ export function PlaceDetailModal({
                     </View>
                     {place.tags.length > 0 && (
                       <>
-                        <Text style={styles.chipsLabel}>What stood out?</Text>
+                        <Text style={styles.chipsLabel}>{t('placeDetail.whatStoodOut')}</Text>
                         <View style={styles.chips}>
                           {place.tags.map((tag) => {
                             const on = draftTags.includes(tag);
@@ -232,7 +233,7 @@ export function PlaceDetailModal({
                               <PressScale
                                 key={tag}
                                 reducedMotion={reducedMotion}
-                                accessibilityLabel={`${tag} tag`}
+                                accessibilityLabel={t('placeDetail.a11y.tag', { tag })}
                                 accessibilityState={{ selected: on }}
                                 style={[styles.chip, on && styles.chipOn]}
                                 onPress={() => toggleTag(tag)}
@@ -246,56 +247,54 @@ export function PlaceDetailModal({
                     )}
                     <PressScale
                       reducedMotion={reducedMotion}
-                      accessibilityLabel="Save review"
+                      accessibilityLabel={t('placeDetail.saveReview')}
                       accessibilityState={{ disabled: draftRating === 0 }}
                       style={[styles.saveButton, draftRating === 0 && styles.saveButtonDisabled]}
                       onPress={submitReview}
                     >
-                      <Text style={styles.saveButtonText}>Save review</Text>
+                      <Text style={styles.saveButtonText}>{t('placeDetail.saveReview')}</Text>
                     </PressScale>
                   </View>
                 )}
               </View>
+              {onMarkBeen && (
+                <View style={styles.actions}>
+                  <PressScale
+                    reducedMotion={reducedMotion}
+                    containerStyle={styles.actionFlex}
+                    accessibilityLabel={t('placeDetail.iWent')}
+                    style={[styles.actionButton, styles.iWent]}
+                    onPress={handleMarkBeen}
+                  >
+                    <Text style={[styles.actionText, styles.iWentText]}>{t('placeDetail.iWent')}</Text>
+                  </PressScale>
+                </View>
+              )}
+              <View style={styles.actions}>
+                <PressScale
+                  reducedMotion={reducedMotion}
+                  containerStyle={styles.actionFlex}
+                  accessibilityLabel={t('placeDetail.openInMaps')}
+                  style={[styles.actionButton, styles.directions]}
+                  onPress={() => Linking.openURL(buildMapUrl(place))}
+                >
+                  <Text style={[styles.actionText, styles.directionsText]}>{t('placeDetail.openInMaps')}</Text>
+                </PressScale>
+                <PressScale
+                  reducedMotion={reducedMotion}
+                  containerStyle={styles.actionFlex}
+                  accessibilityLabel={t('placeDetail.a11y.writeGoogleReview')}
+                  style={[styles.actionButton, styles.googleReview]}
+                  onPress={() => Linking.openURL(buildWriteReviewUrl(place))}
+                >
+                  <Text style={styles.actionText}>{t('placeDetail.googleReview')}</Text>
+                </PressScale>
+              </View>
+              <Pressable accessibilityLabel={t('placeDetail.a11y.closeDetail')} style={styles.close} onPress={onClose}>
+                <Text style={styles.closeText}>{t('common.close')}</Text>
+              </Pressable>
             </ScrollView>
           )}
-          {place && onMarkBeen && (
-            <View style={styles.actions}>
-              <PressScale
-                reducedMotion={reducedMotion}
-                containerStyle={styles.actionFlex}
-                accessibilityLabel="I went"
-                style={[styles.actionButton, styles.iWent]}
-                onPress={handleMarkBeen}
-              >
-                <Text style={[styles.actionText, styles.iWentText]}>I went</Text>
-              </PressScale>
-            </View>
-          )}
-          {place && (
-            <View style={styles.actions}>
-              <PressScale
-                reducedMotion={reducedMotion}
-                containerStyle={styles.actionFlex}
-                accessibilityLabel="Open in Maps"
-                style={[styles.actionButton, styles.directions]}
-                onPress={() => Linking.openURL(buildMapUrl(place))}
-              >
-                <Text style={[styles.actionText, styles.directionsText]}>Open in Maps</Text>
-              </PressScale>
-              <PressScale
-                reducedMotion={reducedMotion}
-                containerStyle={styles.actionFlex}
-                accessibilityLabel="Write a Google review"
-                style={[styles.actionButton, styles.googleReview]}
-                onPress={() => Linking.openURL(buildWriteReviewUrl(place))}
-              >
-                <Text style={styles.actionText}>Google review</Text>
-              </PressScale>
-            </View>
-          )}
-          <Pressable accessibilityLabel="Close place detail" style={styles.close} onPress={onClose}>
-            <Text style={styles.closeText}>Close</Text>
-          </Pressable>
         </Animated.View>
       </View>
     </Modal>
@@ -323,6 +322,7 @@ function makeStyles(colors: Palette, type: TypeRamp) {
   },
   scrollContent: {
     flexGrow: 1,
+    paddingBottom: spacing.lg,
   },
   // The drag target at the top of the sheet. Kept a touch taller than the
   // grabber pill itself so there's a comfortable area to start the pull-down.
