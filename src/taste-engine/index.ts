@@ -1,6 +1,6 @@
-export { applyRating, applyReview, emptyTasteGraph, markBeen, updateTaste } from './updateTaste';
+export { applyRating, applyReview, clearNopes, emptyTasteGraph, markBeen, updateTaste } from './updateTaste';
 export type { Review } from './updateTaste';
-export { DEFAULT_NOPE_COOLDOWN_MS, rankDeck } from './rankDeck';
+export { rankDeck } from './rankDeck';
 export { whySurfaced } from './whySurfaced';
 export { mulberry32, seededShuffle } from './rng';
 export type {

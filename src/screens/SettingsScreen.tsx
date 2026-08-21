@@ -33,6 +33,8 @@ export interface SettingsScreenProps {
   onSignIn: () => void;
   /** Signs out but keeps local data, unlike Reset. */
   onSignOut: () => void;
+  /** Brings every "not for me" place back into the Discover deck (confirmation handled here). */
+  onBringBackPassed: () => void;
   /** Non-destructive: replays the intro grid without wiping taste data. */
   onReplayOnboarding: () => void;
   /** Destructive: wipes local data + signs out (confirmation handled here). */
@@ -69,6 +71,7 @@ export function SettingsScreen({
   signedIn,
   onSignIn,
   onSignOut,
+  onBringBackPassed,
   onReplayOnboarding,
   onResetAllData,
 }: SettingsScreenProps) {
@@ -102,6 +105,18 @@ export function SettingsScreen({
       // OS Settings app. (No-op-safe on web where openSettings is unsupported.)
       Linking.openSettings?.();
     }
+  };
+
+  const handleBringBackPassed = () => {
+    haptics.selection();
+    Alert.alert(
+      'Bring back passed places?',
+      'Places you marked "not for me" will show up in Discover again. Your Want and Been lists are untouched.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Bring back', onPress: onBringBackPassed },
+      ]
+    );
   };
 
   const handleReset = () => {
@@ -240,6 +255,22 @@ export function SettingsScreen({
           </View>
           <Text style={styles.footnote}>
             Nibble uses your location to center the deck nearby. Without it, the deck defaults to Tokyo.
+          </Text>
+
+          {/* Discover */}
+          <Text style={styles.sectionHeader}>DISCOVER</Text>
+          <View style={styles.card}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Bring back passed places"
+              style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+              onPress={handleBringBackPassed}
+            >
+              <Text style={styles.rowAction}>Bring back passed places</Text>
+            </Pressable>
+          </View>
+          <Text style={styles.footnote}>
+            Places you swiped &ldquo;not for me&rdquo; stay out of Discover. Tap to give them another look.
           </Text>
 
           {/* Data */}

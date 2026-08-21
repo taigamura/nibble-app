@@ -3,47 +3,21 @@ import type { Place, RankContext, TasteGraph } from './types';
 
 const DEFAULT_FIT_RATIO = 0.7;
 
-/** How long a Nope suppresses a place before it's eligible to resurface. */
-export const DEFAULT_NOPE_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
-
 function fitScore(vector: TasteGraph['vector'], place: Place): number {
   const signals = [place.category, ...place.tags];
   return signals.reduce((sum, signal) => sum + (vector[signal] ?? 0), 0);
 }
 
 /**
- * Derives the set of place ids to exclude from the deck: a Want or Been
- * event permanently excludes its place (the user already committed), while
- * a Nope excludes only until its cooldown elapses -- "a maybe isn't a
- * permanent no". Only the latest event per place is considered, so a Nope
- * later overridden by a Want/Been stays permanently excluded.
+ * Derives the set of place ids to exclude from the deck: any place the user
+ * has already actioned -- Nope, Want, or Been -- stays out. Once you've made
+ * a call on a place it doesn't resurface on its own; a Nope is as durable as
+ * a Want or Been. The only way a Noped place returns is the deliberate "bring
+ * back passed places" action, which strips the Nope events from the graph (see
+ * `clearNopes`), so a place with no surviving history is eligible again.
  */
-function excludedPlaceIds(graph: TasteGraph, context: RankContext): Set<string> {
-  const latestByPlace = new Map<string, TasteGraph['history'][number]>();
-  for (const event of graph.history) {
-    latestByPlace.set(event.place.id, event);
-  }
-
-  const { now, nopeCooldownMs = DEFAULT_NOPE_COOLDOWN_MS } = context;
-  const excluded = new Set<string>();
-
-  for (const event of latestByPlace.values()) {
-    if (event.action === 'want' || event.action === 'been') {
-      excluded.add(event.place.id);
-      continue;
-    }
-    // event.action === 'nope'
-    if (now === undefined) {
-      // No time context to reason with -- fall back to the safe default.
-      excluded.add(event.place.id);
-      continue;
-    }
-    if (now - event.timestamp < nopeCooldownMs) {
-      excluded.add(event.place.id);
-    }
-  }
-
-  return excluded;
+function excludedPlaceIds(graph: TasteGraph): Set<string> {
+  return new Set(graph.history.map((event) => event.place.id));
 }
 
 /**
@@ -59,7 +33,7 @@ export function rankDeck(
   context: RankContext
 ): Place[] {
   const fitRatio = context.fitRatio ?? DEFAULT_FIT_RATIO;
-  const excluded = excludedPlaceIds(graph, context);
+  const excluded = excludedPlaceIds(graph);
   const unseen = candidatePlaces.filter((place) => !excluded.has(place.id));
 
   const fitOrder = unseen

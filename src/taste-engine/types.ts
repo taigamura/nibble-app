@@ -74,18 +74,4 @@ export interface RankContext {
   seed: number;
   /** Fraction of the deck ordered by fit score vs. shuffled-in wildcards, e.g. 0.7. */
   fitRatio?: number;
-  /**
-   * Current epoch ms, injected for determinism (no Date.now() inside pure
-   * functions). Used to decide whether a Nope's cooldown has elapsed. When
-   * omitted, there's no time context to reason with, so all Nopes are
-   * excluded (the safe default) -- callers in the app pass a real `now`.
-   */
-  now?: number;
-  /**
-   * How long a Nope suppresses a place from resurfacing, in ms. Defaults to
-   * `DEFAULT_NOPE_COOLDOWN_MS`. Only meaningful when `now` is provided; a
-   * value of 0 with `now` set immediately clears all Nopes (the "Reset seen"
-   * escape hatch).
-   */
-  nopeCooldownMs?: number;
 }
