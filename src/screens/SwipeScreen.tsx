@@ -136,15 +136,23 @@ export function SwipeScreen({
   const actionedIds = useMemo(() => new Set(graph.history.map((e) => e.place.id)), [graph.history]);
   const deck = useMemo(() => rankedDeck.filter((p) => !actionedIds.has(p.id)), [rankedDeck, actionedIds]);
 
-  // Prefetch the hero photo of the next few cards so they don't flash/reload
-  // right after a swipe promotes the behind card.
+  // Warm a window of upcoming cards so their photos are disk-cached (expo-image)
+  // before they're promoted -- the Google Places /media endpoint is slow on a
+  // cold fetch, so a wider window hides that latency behind earlier swipes. We
+  // prefetch each card's hero *and* its first gallery frame; expo-image dedupes
+  // by URL, so re-running this on every swipe is cheap.
   useEffect(() => {
-    deck.slice(0, 4).forEach((p) => {
+    const warm = (uri?: string) => {
+      if (!uri) return;
       try {
-        Image.prefetch?.(p.photoUrl)?.catch?.(() => {});
+        Image.prefetch?.(uri)?.catch?.(() => {});
       } catch {
         // Image.prefetch is a no-op on some platforms/test envs; ignore.
       }
+    };
+    deck.slice(0, 8).forEach((p) => {
+      warm(p.photoUrl);
+      warm(p.photoUrls?.[1]);
     });
   }, [deck]);
 

@@ -315,9 +315,6 @@ export function PlaceDetailModal({
                   </PressScale>
                 )}
               </View>
-              <Pressable accessibilityLabel={t('placeDetail.a11y.closeDetail')} style={styles.close} onPress={onClose}>
-                <Text style={styles.closeText}>{t('common.close')}</Text>
-              </Pressable>
             </ScrollView>
           )}
         </ReanimatedAnimated.View>
@@ -514,16 +511,6 @@ function makeStyles(colors: Palette, type: TypeRamp) {
   },
   directionsText: {
     color: colors.labelOnColor,
-  },
-  close: {
-    paddingVertical: spacing.lg,
-    alignItems: 'center',
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.separator,
-  },
-  closeText: {
-    ...type.headline,
-    color: colors.label,
   },
   });
 }
