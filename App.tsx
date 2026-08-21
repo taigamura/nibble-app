@@ -25,6 +25,7 @@ import { SettingsScreen } from './src/screens/SettingsScreen';
 import { SignInPromptModal } from './src/screens/SignInPromptModal';
 import { SwipeScreen } from './src/screens/SwipeScreen';
 import { clearNopes } from './src/taste-engine';
+import { LanguageProvider, useT } from './src/i18n';
 import { ThemeProvider, useTheme } from './src/ThemeProvider';
 import { elevate, spacing, type Palette, type TypeRamp } from './src/theme';
 
@@ -116,9 +117,11 @@ export default function App() {
     content = <ReleaseMisconfiguredScreen missingKeys={missing} />;
   } else {
     content = (
-      <ThemeProvider>
-        <AppContent />
-      </ThemeProvider>
+      <LanguageProvider>
+        <ThemeProvider>
+          <AppContent />
+        </ThemeProvider>
+      </LanguageProvider>
     );
   }
 
@@ -188,6 +191,7 @@ const guardStyles = StyleSheet.create({
 
 function AppContent() {
   const { colors, type } = useTheme();
+  const t = useT();
   const styles = useMemo(() => makeStyles(colors, type), [colors, type]);
 
   const locationProvider = useRef(new ExpoLocationProvider()).current;
@@ -355,10 +359,7 @@ function AppContent() {
   const handleSetHome = async () => {
     const point = await locationProvider.getCurrentLocation();
     if (!point) {
-      Alert.alert(
-        'Location unavailable',
-        'Nibble needs location access to set Home. Enable it in your device Settings and try again.'
-      );
+      Alert.alert(t('app.locationAlert.title'), t('app.locationAlert.message'));
       return;
     }
     await homeLocationState.set(point);
@@ -437,7 +438,7 @@ function AppContent() {
           <SafeAreaView style={styles.tabBarSafe}>
           <View style={styles.tabBar}>
             <Pressable
-              accessibilityLabel="Swipe tab"
+              accessibilityLabel={t('app.a11y.swipeTab')}
               accessibilityRole="tab"
               accessibilityState={{ selected: activeTab === 'swipe' }}
               style={styles.tabBarButton}
@@ -451,11 +452,11 @@ function AppContent() {
                 />
               </Animated.View>
               <Text style={[styles.tabBarLabel, activeTab === 'swipe' && styles.tabBarActive]}>
-                Discover
+                {t('app.tab.discover')}
               </Text>
             </Pressable>
             <Pressable
-              accessibilityLabel="Collection tab"
+              accessibilityLabel={t('app.a11y.collectionTab')}
               accessibilityRole="tab"
               accessibilityState={{ selected: activeTab === 'collection' }}
               style={styles.tabBarButton}
@@ -469,7 +470,7 @@ function AppContent() {
                 />
               </Animated.View>
               <Text style={[styles.tabBarLabel, activeTab === 'collection' && styles.tabBarActive]}>
-                Collection
+                {t('app.tab.collection')}
               </Text>
             </Pressable>
           </View>

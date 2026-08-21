@@ -3,10 +3,20 @@ import TestRenderer, { act, type ReactTestRenderer } from 'react-test-renderer';
 import { Text } from 'react-native';
 
 import { SwipeScreen } from '../SwipeScreen';
+import { LanguageProvider } from '../../i18n';
+import type { Language } from '../../i18n';
+import { LanguageState } from '../../settings/languageState';
 import { emptyTasteGraph } from '../../taste-engine';
 import type { EnrichmentProvider, PlacesProvider, Store } from '../../providers/types';
 import type { Place } from '../../taste-engine';
 import { ThemeProvider } from '../../ThemeProvider';
+
+/** Forces English so these design tests can assert on the (unchanged) English strings. */
+class EnglishLanguageState extends LanguageState {
+  async get(): Promise<Language> {
+    return 'en';
+  }
+}
 
 const places: Place[] = [
   {
@@ -38,14 +48,16 @@ async function renderSwipe(): Promise<ReactTestRenderer> {
   let renderer!: ReactTestRenderer;
   await act(async () => {
     renderer = TestRenderer.create(
-      <ThemeProvider>
-        <SwipeScreen
-          placesProvider={makePlacesProvider()}
-          enrichmentProvider={makeEnrichment()}
-          store={makeStore()}
-          seed={1}
-        />
-      </ThemeProvider>
+      <LanguageProvider languageState={new EnglishLanguageState()}>
+        <ThemeProvider>
+          <SwipeScreen
+            placesProvider={makePlacesProvider()}
+            enrichmentProvider={makeEnrichment()}
+            store={makeStore()}
+            seed={1}
+          />
+        </ThemeProvider>
+      </LanguageProvider>
     );
   });
   await act(async () => {});
@@ -64,15 +76,17 @@ describe('SwipeScreen empty-deck decision card', () => {
     let renderer!: ReactTestRenderer;
     await act(async () => {
       renderer = TestRenderer.create(
-        <ThemeProvider>
-          <SwipeScreen
-            placesProvider={{ getCandidates: async () => [] }}
-            enrichmentProvider={makeEnrichment()}
-            store={makeStore()}
-            seed={1}
-            onGoToWant={() => {}}
-          />
-        </ThemeProvider>
+        <LanguageProvider languageState={new EnglishLanguageState()}>
+          <ThemeProvider>
+            <SwipeScreen
+              placesProvider={{ getCandidates: async () => [] }}
+              enrichmentProvider={makeEnrichment()}
+              store={makeStore()}
+              seed={1}
+              onGoToWant={() => {}}
+            />
+          </ThemeProvider>
+        </LanguageProvider>
       );
     });
     await act(async () => {});
@@ -87,14 +101,16 @@ describe('SwipeScreen empty-deck decision card', () => {
     let renderer!: ReactTestRenderer;
     await act(async () => {
       renderer = TestRenderer.create(
-        <ThemeProvider>
-          <SwipeScreen
-            placesProvider={{ getCandidates: async () => [] }}
-            enrichmentProvider={makeEnrichment()}
-            store={makeStore()}
-            seed={1}
-          />
-        </ThemeProvider>
+        <LanguageProvider languageState={new EnglishLanguageState()}>
+          <ThemeProvider>
+            <SwipeScreen
+              placesProvider={{ getCandidates: async () => [] }}
+              enrichmentProvider={makeEnrichment()}
+              store={makeStore()}
+              seed={1}
+            />
+          </ThemeProvider>
+        </LanguageProvider>
       );
     });
     await act(async () => {});

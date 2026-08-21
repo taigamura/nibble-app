@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { haptics } from '../haptics';
+import { useT } from '../i18n';
 import { useTheme } from '../ThemeProvider';
 import { type Palette, type TypeRamp } from '../theme';
 
@@ -21,19 +22,17 @@ interface SignInPromptModalProps {
  */
 export function SignInPromptModal({ visible, signingIn, error, onSignIn, onDismiss }: SignInPromptModalProps) {
   const { colors, type } = useTheme();
+  const t = useT();
   const styles = useMemo(() => makeStyles(colors, type), [colors, type]);
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onDismiss}>
       <View style={styles.backdrop}>
         <View style={styles.sheet}>
-          <Text style={styles.title}>Save your taste graph</Text>
-          <Text style={styles.body}>
-            Sign in to sync your Want list, Been history, and taste graph across devices. Your graph and history stay
-            free either way.
-          </Text>
+          <Text style={styles.title}>{t('signIn.title')}</Text>
+          <Text style={styles.body}>{t('signIn.body')}</Text>
           {error && <Text style={styles.error}>{error}</Text>}
           <Pressable
-            accessibilityLabel="Sign in with Apple"
+            accessibilityLabel={t('common.signInWithApple')}
             style={({ pressed }) => [styles.signIn, pressed && styles.signInPressed]}
             disabled={signingIn}
             onPress={() => {
@@ -44,16 +43,16 @@ export function SignInPromptModal({ visible, signingIn, error, onSignIn, onDismi
             {signingIn ? (
               <ActivityIndicator color={colors.labelOnColor} />
             ) : (
-              <Text style={styles.signInText}>Sign in with Apple</Text>
+              <Text style={styles.signInText}>{t('common.signInWithApple')}</Text>
             )}
           </Pressable>
           <Pressable
-            accessibilityLabel="Not now"
+            accessibilityLabel={t('signIn.notNow')}
             style={({ pressed }) => [styles.dismiss, pressed && styles.dismissPressed]}
             onPress={onDismiss}
             disabled={signingIn}
           >
-            <Text style={styles.dismissText}>Not now</Text>
+            <Text style={styles.dismissText}>{t('signIn.notNow')}</Text>
           </Pressable>
         </View>
       </View>

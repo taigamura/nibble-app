@@ -18,6 +18,7 @@ import { formatCategory } from '../format';
 import { SettingsButton } from '../components/SettingsButton';
 import { Icon } from '../components/Icon';
 import { haptics } from '../haptics';
+import { useT } from '../i18n';
 import { spring, useReducedMotion } from '../motion';
 import { PlaceDetailModal } from './PlaceDetailModal';
 import { TonightSheet } from './TonightSheet';
@@ -35,13 +36,14 @@ interface CollectionScreenProps {
 
 type Tab = 'want' | 'been';
 
-const TABS: { key: Tab; label: string }[] = [
-  { key: 'want', label: 'Want' },
-  { key: 'been', label: 'Been' },
+const TABS: { key: Tab; labelKey: 'collection.tab.want' | 'collection.tab.been' }[] = [
+  { key: 'want', labelKey: 'collection.tab.want' },
+  { key: 'been', labelKey: 'collection.tab.been' },
 ];
 
 export function CollectionScreen({ store, canSignIn, signedIn, onRequestSignIn, onOpenSettings }: CollectionScreenProps) {
   const { colors, type } = useTheme();
+  const t = useT();
   const styles = useMemo(() => makeStyles(colors, type), [colors, type]);
   const reducedMotion = useReducedMotion();
   const [graph, setGraph] = useState<TasteGraph | null>(null);
@@ -122,8 +124,8 @@ export function CollectionScreen({ store, canSignIn, signedIn, onRequestSignIn, 
         <SettingsButton onPress={onOpenSettings} />
       </View>
       {canSignIn && !signedIn && (
-        <Pressable accessibilityLabel="Sync across devices" style={styles.syncBanner} onPress={onRequestSignIn}>
-          <Text style={styles.syncBannerText}>Sync across devices</Text>
+        <Pressable accessibilityLabel={t('collection.syncBanner')} style={styles.syncBanner} onPress={onRequestSignIn}>
+          <Text style={styles.syncBannerText}>{t('collection.syncBanner')}</Text>
         </Pressable>
       )}
       <View
@@ -149,17 +151,20 @@ export function CollectionScreen({ store, canSignIn, signedIn, onRequestSignIn, 
             ]}
           />
         )}
-        {TABS.map(({ key, label }) => (
-          <Pressable
-            key={key}
-            accessibilityLabel={`${label} tab`}
-            accessibilityState={{ selected: tab === key }}
-            style={styles.tab}
-            onPress={() => handleTabChange(key)}
-          >
-            <Text style={[styles.tabText, tab === key && styles.tabTextActive]}>{label}</Text>
-          </Pressable>
-        ))}
+        {TABS.map(({ key, labelKey }) => {
+          const label = t(labelKey);
+          return (
+            <Pressable
+              key={key}
+              accessibilityLabel={t('collection.a11y.tab', { label })}
+              accessibilityState={{ selected: tab === key }}
+              style={styles.tab}
+              onPress={() => handleTabChange(key)}
+            >
+              <Text style={[styles.tabText, tab === key && styles.tabTextActive]}>{label}</Text>
+            </Pressable>
+          );
+        })}
       </View>
 
       {tasteSummary && <TasteCard summary={tasteSummary} styles={styles} colors={colors} />}
@@ -168,17 +173,17 @@ export function CollectionScreen({ store, canSignIn, signedIn, onRequestSignIn, 
         <>
           {wantPlaces.length > 0 && (
             <Pressable
-              accessibilityLabel="Help me pick a place"
+              accessibilityLabel={t('collection.a11y.tonightButton')}
               style={styles.tonightButton}
               onPress={() => setTonightVisible(true)}
             >
               <Icon name="sparkles" size={15} color={colors.tint} style={styles.tonightButtonIcon} />
-              <Text style={styles.tonightButtonText}>Where to?</Text>
+              <Text style={styles.tonightButtonText}>{t('collection.whereTo')}</Text>
             </Pressable>
           )}
           <PlaceList
             data={wantPlaces.map((place) => ({ place }))}
-            emptyText="Swipe right on places to build your Want list."
+            emptyText={t('collection.want.empty')}
             onSelect={(entry) => setSelected({ place: entry.place, isWant: true })}
             onMarkBeen={handleMarkBeen}
           />
@@ -200,7 +205,7 @@ export function CollectionScreen({ store, canSignIn, signedIn, onRequestSignIn, 
           )}
           <PlaceList
             data={beenEntries}
-            emptyText="Places you mark Been will show up here."
+            emptyText={t('collection.been.empty')}
             onSelect={(entry) => setSelected({ ...entry, canReview: true })}
           />
         </>
@@ -271,6 +276,7 @@ interface PlaceRowProps {
 }
 
 function PlaceRow({ entry, styles, reducedMotion, onSelect, onMarkBeen }: PlaceRowProps) {
+  const t = useT();
   const scale = useRef(new Animated.Value(1)).current;
 
   const pressIn = () => {
@@ -285,7 +291,7 @@ function PlaceRow({ entry, styles, reducedMotion, onSelect, onMarkBeen }: PlaceR
   return (
     <Animated.View style={{ transform: [{ scale }] }}>
       <Pressable
-        accessibilityLabel={`Open ${entry.place.name}`}
+        accessibilityLabel={t('collection.a11y.openPlace', { name: entry.place.name })}
         style={styles.row}
         onPress={() => onSelect(entry)}
         onPressIn={pressIn}
@@ -296,12 +302,12 @@ function PlaceRow({ entry, styles, reducedMotion, onSelect, onMarkBeen }: PlaceR
           <Text style={styles.rowName}>{entry.place.name}</Text>
           <Text style={styles.rowMeta}>
             {formatCategory(entry.place.category)} · {entry.place.priceBand}
-            {entry.rating !== undefined ? ` · your rating ${'★'.repeat(entry.rating)}` : ''}
+            {entry.rating !== undefined ? t('collection.yourRating', { stars: '★'.repeat(entry.rating) }) : ''}
           </Text>
         </View>
         {onMarkBeen && (
           <Pressable
-            accessibilityLabel={`I went to ${entry.place.name}`}
+            accessibilityLabel={t('collection.a11y.iWentTo', { name: entry.place.name })}
             style={styles.iWentRowButton}
             onPress={(e) => {
               e.stopPropagation();
@@ -309,7 +315,7 @@ function PlaceRow({ entry, styles, reducedMotion, onSelect, onMarkBeen }: PlaceR
               onMarkBeen(entry.place.id);
             }}
           >
-            <Text style={styles.iWentRowButtonText}>I went</Text>
+            <Text style={styles.iWentRowButtonText}>{t('placeDetail.iWent')}</Text>
           </Pressable>
         )}
       </Pressable>
@@ -331,15 +337,17 @@ interface TasteCardProps {
  * (and this card doesn't render) until there's enough signal to be honest.
  */
 function TasteCard({ summary, styles, colors }: TasteCardProps) {
+  const t = useT();
+  const unit = t(summary.placeCount === 1 ? 'collection.taste.unitOne' : 'collection.taste.unitOther');
   const footer =
-    `Built from ${summary.placeCount} ${summary.placeCount === 1 ? 'place' : 'places'} you swiped` +
-    (summary.priceLean ? ` · mostly ${summary.priceLean}` : '');
+    t('collection.taste.footerBuilt', { count: summary.placeCount, unit }) +
+    (summary.priceLean ? t('collection.taste.footerPriceLean', { price: summary.priceLean }) : '');
 
   return (
     <View style={styles.tasteCard}>
       <View style={styles.tasteEyebrowRow}>
         <Icon name="sparkles" size={12} color={colors.tint} style={styles.tasteEyebrowIcon} />
-        <Text style={styles.tasteEyebrow}>Your taste</Text>
+        <Text style={styles.tasteEyebrow}>{t('collection.taste.eyebrow')}</Text>
       </View>
       <Text style={styles.tasteHeadline}>{summary.headline}</Text>
       {summary.categoryChips.length > 0 && (

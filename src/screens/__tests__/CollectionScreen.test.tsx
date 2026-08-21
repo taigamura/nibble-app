@@ -3,10 +3,20 @@ import TestRenderer, { act, type ReactTestRenderer } from 'react-test-renderer';
 import { Text } from 'react-native';
 
 import { CollectionScreen } from '../CollectionScreen';
+import { LanguageProvider } from '../../i18n';
+import type { Language } from '../../i18n';
+import { LanguageState } from '../../settings/languageState';
 import { emptyTasteGraph, updateTaste } from '../../taste-engine';
 import type { Place, TasteGraph } from '../../taste-engine';
 import type { Store } from '../../providers/types';
 import { ThemeProvider } from '../../ThemeProvider';
+
+/** Forces English so this test can assert on the (unchanged) English strings. */
+class EnglishLanguageState extends LanguageState {
+  async get(): Promise<Language> {
+    return 'en';
+  }
+}
 
 const WANT_PLACE: Place = {
   id: 'w1',
@@ -47,9 +57,11 @@ describe('CollectionScreen — I went (markBeen)', () => {
     let renderer!: ReactTestRenderer;
     await act(async () => {
       renderer = TestRenderer.create(
-        <ThemeProvider>
-          <CollectionScreen store={store} />
-        </ThemeProvider>
+        <LanguageProvider languageState={new EnglishLanguageState()}>
+          <ThemeProvider>
+            <CollectionScreen store={store} />
+          </ThemeProvider>
+        </LanguageProvider>
       );
     });
     await act(async () => {});

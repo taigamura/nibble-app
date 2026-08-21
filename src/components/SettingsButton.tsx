@@ -2,6 +2,7 @@ import React, { useMemo, useRef } from 'react';
 import { Animated, Pressable, StyleSheet } from 'react-native';
 
 import { Icon } from './Icon';
+import { useT } from '../i18n';
 import { spring, useReducedMotion } from '../motion';
 import { radius, type Palette } from '../theme';
 import { useTheme } from '../ThemeProvider';
@@ -13,6 +14,7 @@ import { useTheme } from '../ThemeProvider';
  */
 export function SettingsButton({ onPress }: { onPress?: () => void }) {
   const { colors } = useTheme();
+  const t = useT();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const reducedMotion = useReducedMotion();
   const scale = useRef(new Animated.Value(1)).current;
@@ -28,7 +30,7 @@ export function SettingsButton({ onPress }: { onPress?: () => void }) {
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel="Open settings"
+      accessibilityLabel={t('settingsButton.a11y.open')}
       hitSlop={8}
       style={({ pressed }) => [styles.button, pressed && styles.pressed]}
       onPressIn={() => animateTo(0.88)}
